@@ -97,3 +97,38 @@ output.df.ffm.join <- output.df.ffm2 %>%
 out.csv.fname <- "SFE_LOI_Natural_FFM_annual_results.csv"
 #write csv to original directory with output.csv.fname pasted to it
 write.csv(output.df.ffm.join, paste0(ffm_dir, out.csv.fname), row.names = FALSE)
+
+
+############################################################################################################################
+## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
+## Flow reduction scenarios
+
+
+
+
+#example code for getting list of water year date, assuming the csv i you read in is called flow.data.i and year column is called year (may need to change)
+water.yr.i <- unique(flow.data.i$year)
+water.yr.start <- as.numeric(water.yr.i) - 1 #previous year which is start of WY
+#create start date as character, set as date
+start.date <- as.POSIXct(paste0("10/01/", as.character(water.yr.start)))
+#create end date as character, set as date
+end.date <- as.POSIXct(paste0("09/30/", as.character(water.yr.i)))
+#list of dates from start to end date
+date.long <- seq(start.date,end.date, by="days",  format="%m-%d-%Y")
+#list dates as short format (excluding time)
+date <- format(date.long, "%m/%d/%Y")
+#append date with water.year.day assuming the water year day column you make is called water.year.day
+wyd.date.lookup <- data.frame(cbind(flow.data.i$water.year.day, date))
+#after you pivot longer flow.data.i, you can left_join pivoted data with wyd.date.lookup by = "water.year.day" to get the date column attached to pivoted data
+#end of chunk to copy into loop
+
+###extra code just for you to run to see how above lines work, delete after you test
+start.date <- as.POSIXct("10/01/1996", format="%m/%d/%Y")
+#create end date as character, set as date
+end.date <- as.POSIXct("09/30/1997", format="%m/%d/%Y")
+#list of dates from start to end date
+date.long <- seq(start.date,end.date, by="days",  format="%m-%d-%Y")
+#list dates as short format (excluding time)
+date <- format(date.long, "%m/%d/%Y")
+
+
