@@ -146,9 +146,9 @@ typeII.file.lng <- list.files(typeII.dir, full.names = TRUE)
 ### loop to read in the csv files, pivot longer, get siteID, and save in output df
 
 #set output data frame with appropriate rows and columns in final output created (Year, typeII, Value, siteID)
-output.df.typeII <- data.frame(matrix(NA, nrow=1, ncol=8))
+output.df.typeII <- data.frame(matrix(NA, nrow=1, ncol=5))
 #set names of columns in output df
-names(output.df.typeII) <- c("Diversion","Year","Value","ValueType","Species","Lifestage","Need","siteID")
+names(output.df.typeII) <- c("siteID", "Distance","Thalweg","Q_cfs","Depth")
 
 #can set i to 1 and test the loop, just skip the for line and run lines inside of loop
 i <- 1
@@ -181,40 +181,40 @@ for(i in 1:length(typeII.files)) {
   #check class of each column (all cols need to be same class in order to pivot_longer/merge)
   sapply(typeII.i, class)
   
-  #pivot_longer the cols.to.piv ####FIX HERE
-  pivot.dat <- typeII.i %>% 
-    pivot_longer(cols = cols.to.piv)
+  #pivot_longer the cols.to.piv but exclude the first column without header
+  pivot.dat <- typeII.i[,2:length(names(typeII.i))] %>% 
+    pivot_longer(cols = cols.to.piv) %>% 
+    data.frame()
   #rename cols
-  names(pivot.dat) <- c("Diversion", "Year", "Value")
+  names(pivot.dat) <- c("Distance", "Thalweg", "Qind", "Depth")
   #check col names are correct
   head(pivot.dat)
   
+  #find Q rate associated with Qind
+  pivot.dat2 <- pivot.dat %>% 
+    left_join(qlookup.i, by=c("Qind"="Qlist.i"), ) %>% 
+    rename(Q_cfs=qcols.i)
+ 
+  #add siteID.i as column
+  pivot.dat2$siteID <- rep(siteID.i, length(pivot.dat2$Distance))
   
-  #add siteID.i as column
-  pivot.dat$ValueType <- rep(valuetype.i, length(pivot.dat$Diversion))
-  #add siteID.i as column
-  pivot.dat$Species <- rep(species.i, length(pivot.dat$Diversion))
-  #add siteID.i as column
-  pivot.dat$Lifestage <- rep(lifestage.i, length(pivot.dat$Diversion))
-  #add siteID.i as column
-  pivot.dat$Need <- rep(need.i, length(pivot.dat$Diversion))
-  #add siteID.i as column
-  pivot.dat$siteID <- rep(siteID.i, length(pivot.dat$Diversion))
+  #reorganize columns and remove Qind column just need Q_cfs
+  pivot.dat2 <- pivot.dat2 %>% 
+    select("siteID", "Distance","Thalweg","Q_cfs","Depth")
   
-  names(pivot.dat)
-  
+  names(pivot.dat2)
   
   #save into output df
-  output.df.typeII <- rbind(output.df.typeII, pivot.dat)
+  output.df.typeII <- rbind(output.df.typeII, pivot.dat2)
   
 }
 
 #remove the first NA row
-output.df.typeII2 <- output.df.typeII[2:length(output.df.typeII$Year),]
+output.df.typeII2 <- output.df.typeII[2:length(output.df.typeII$siteID),]
 
 
 #write csv the final output.df.ffm.join, save into original directory where csvs were saved
-out.csv.fname <- "spp_lifestage_hab_passage_rel_baseline_SFE_LOIs.csv"
+out.csv.fname <- "thalweg_depths_SFE_LOIs.csv"
 #write csv to original directory with output.csv.fname pasted to it
 write.csv(output.df.typeII2, paste0(typeII.dir, out.csv.fname), row.names = FALSE)
 
