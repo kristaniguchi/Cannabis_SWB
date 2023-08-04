@@ -131,6 +131,183 @@ date.long <- seq(start.date,end.date, by="days",  format="%m-%d-%Y")
 #list dates as short format (excluding time)
 date <- format(date.long, "%m/%d/%Y")
 
+############################################################################################################################
+## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
+##  TypeII_Curves < Riffle_Depth
+
+
+#update directory
+typeII.dir <- paste0(curves_dir, "/TypeII_Curves/Riffle_Depth/")
+#list all files in curves_dir
+typeII.files <- list.files(typeII.dir)
+#get the long file name (with directory, will use this to read in csvs)
+typeII.file.lng <- list.files(typeII.dir, full.names = TRUE)
+
+### loop to read in the csv files, pivot longer, get siteID, and save in output df
+
+#set output data frame with appropriate rows and columns in final output created (Year, typeII, Value, siteID)
+output.df.typeII <- data.frame(matrix(NA, nrow=1, ncol=8))
+#set names of columns in output df
+names(output.df.typeII) <- c("Diversion","Year","Value","ValueType","Species","Lifestage","Need","siteID")
+
+#can set i to 1 and test the loop, just skip the for line and run lines inside of loop
+i <- 1
+
+#loop --> iterate from 1 to length of csv files reading in
+for(i in 1:length(typeII.files)) {
+  
+  #get important info from file name i
+  #find siteID for csv i which is first part of file name, separate string file name by "__", take first element (if need second element use [[1]][2])
+  siteID.i <- strsplit(typeII.files[i], split="__")[[1]][1]
+
+  #read in csv i, don't check column names (allows col names to be numbers)
+  typeII.i <- read.csv(typeII.file.lng[i], check.names = F)
+  
+  #get Q columns (will replace col names)
+  qcols.i <- as.numeric(as.character(names(typeII.i)[4:length(names(typeII.i))]))
+  #create Q column names
+  list.i <- 1:length(qcols.i)
+  Qlist.i <- paste0("Q", list.i)
+  #create lookup table to use later on
+  qlookup.i <- data.frame(cbind(qcols.i, Qlist.i))
+  #rename typeII.i
+  names(typeII.i)[4:length(names(typeII.i))] <- Qlist.i
+  names(typeII.i)
+  
+  #pivot longer all columns except first column, should only be years listed
+  cols.to.piv <- names(typeII.i)[4:length(names(typeII.i))]
+  #set all value columns to numeric (exclude first col)
+  typeII.i[,2:length(names(typeII.i))] <- sapply(typeII.i[,2:length(names(typeII.i))],as.numeric)
+  #check class of each column (all cols need to be same class in order to pivot_longer/merge)
+  sapply(typeII.i, class)
+  
+  #pivot_longer the cols.to.piv ####FIX HERE
+  pivot.dat <- typeII.i %>% 
+    pivot_longer(cols = cols.to.piv)
+  #rename cols
+  names(pivot.dat) <- c("Diversion", "Year", "Value")
+  #check col names are correct
+  head(pivot.dat)
+  
+  
+  #add siteID.i as column
+  pivot.dat$ValueType <- rep(valuetype.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Species <- rep(species.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Lifestage <- rep(lifestage.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Need <- rep(need.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$siteID <- rep(siteID.i, length(pivot.dat$Diversion))
+  
+  names(pivot.dat)
+  
+  
+  #save into output df
+  output.df.typeII <- rbind(output.df.typeII, pivot.dat)
+  
+}
+
+#remove the first NA row
+output.df.typeII2 <- output.df.typeII[2:length(output.df.typeII$Year),]
+
+
+#write csv the final output.df.ffm.join, save into original directory where csvs were saved
+out.csv.fname <- "spp_lifestage_hab_passage_rel_baseline_SFE_LOIs.csv"
+#write csv to original directory with output.csv.fname pasted to it
+write.csv(output.df.typeII2, paste0(typeII.dir, out.csv.fname), row.names = FALSE)
+
+
+
+
+
+
+############################################################################################################################
+## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
+## Type II ecorisk curves
+## workflow: read in all csv files, get important info from file name, replace blanks with NAs, pivot longer, add cols
+
+
+#update directory
+ecorisk.dir <- paste0(curves_dir, "/TypeII_EcoRisk_Curves/")
+#list all files in curves_dir
+ecorisk.files <- list.files(ecorisk.dir)
+#get the long file name (with directory, will use this to read in csvs)
+ecorisk.file.lng <- list.files(ecorisk.dir, full.names = TRUE)
+
+### loop to read in the csv files, pivot longer, get siteID, and save in output df
+
+#set output data frame with appropriate rows and columns in final output created (Year, ecorisk, Value, siteID)
+output.df.ecorisk <- data.frame(matrix(NA, nrow=1, ncol=8))
+#set names of columns in output df
+names(output.df.ecorisk) <- c("Diversion","Year","Value","ValueType","Species","Lifestage","Need","siteID")
+
+#can set i to 1 and test the loop, just skip the for line and run lines inside of loop
+i <- 1
+
+#loop --> iterate from 1 to length of csv files reading in
+for(i in 1:length(ecorisk.files)) {
+  
+  #get important info from file name i
+  #find siteID for csv i which is first part of file name, separate string file name by "__", take first element (if need second element use [[1]][2])
+  siteID.i <- strsplit(ecorisk.files[i], split="__")[[1]][1]
+  #get species
+  species.i <- strsplit(ecorisk.files[i], split="__")[[1]][2]
+  #get life stage
+  lifestage.i <- strsplit(ecorisk.files[i], split="__")[[1]][3]
+  #get need (habitat or passage)
+  need.i <- strsplit(ecorisk.files[i], split="__")[[1]][4]
+  #get need, remove .csv
+  valuetype.i <- gsub(".csv",  "", strsplit(ecorisk.files[i], split="__")[[1]][5])
+  
+  #read in csv i, don't check column names (allows col names to be numbers)
+  ecorisk.i <- read.csv(ecorisk.file.lng[i], check.names = F)
+
+  #pivot longer all columns except first column, should only be years listed
+  cols.to.piv <- as.character(names(ecorisk.i)[2:length(names(ecorisk.i))])
+  #set all value columns to numeric (exclude first col)
+  ecorisk.i[,2:length(names(ecorisk.i))] <- sapply(ecorisk.i[,2:length(names(ecorisk.i))],as.numeric)
+  #check class of each column (all cols need to be same class in order to pivot_longer/merge)
+  sapply(ecorisk.i, class)
+  
+  #pivot_longer the cols.to.piv
+  pivot.dat <- data.frame(pivot_longer(ecorisk.i, cols = cols.to.piv))
+  #rename cols
+  names(pivot.dat) <- c("Diversion", "Year", "Value")
+  #check col names are correct
+  head(pivot.dat)
+  
+  
+  #add siteID.i as column
+  pivot.dat$ValueType <- rep(valuetype.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Species <- rep(species.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Lifestage <- rep(lifestage.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$Need <- rep(need.i, length(pivot.dat$Diversion))
+  #add siteID.i as column
+  pivot.dat$siteID <- rep(siteID.i, length(pivot.dat$Diversion))
+  
+  names(pivot.dat)
+  
+  
+  #save into output df
+  output.df.ecorisk <- rbind(output.df.ecorisk, pivot.dat)
+  
+}
+
+#remove the first NA row
+output.df.ecorisk2 <- output.df.ecorisk[2:length(output.df.ecorisk$Year),]
+
+
+#write csv the final output.df.ffm.join, save into original directory where csvs were saved
+out.csv.fname <- "spp_lifestage_hab_passage_rel_baseline_SFE_LOIs.csv"
+#write csv to original directory with output.csv.fname pasted to it
+write.csv(output.df.ecorisk2, paste0(ecorisk.dir, out.csv.fname), row.names = FALSE)
+
+
 
 
 
