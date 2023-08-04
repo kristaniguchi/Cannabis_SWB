@@ -132,3 +132,12 @@ date.long <- seq(start.date,end.date, by="days",  format="%m-%d-%Y")
 date <- format(date.long, "%m/%d/%Y")
 
 
+
+
+
+
+############################################################################################################################
+## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
+## Type II ecorisk curves (last set of deliverables to tidy)
+
+
