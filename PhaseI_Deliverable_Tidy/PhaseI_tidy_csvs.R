@@ -13,6 +13,7 @@
 #'      Type II ecorisk curves
 #'      
 #'@author Kris Taniguchi-Quan, SCCWRP
+#'@author Sara Cuadra, SCCWRP
 #'
 ############################################################################################################################
 
@@ -196,7 +197,8 @@ write.csv(output.df.flowr2, paste0(flowr_dir, out.csv.fname), row.names=FALSE)
 ## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
 ##  Type I curves S Coast data
 
-scoast_curves_dir<-"C:/Users/GisUser/SCCWRP/Staff - P Drive/Data/PartTimers/SaraCuadra/DataTidy/3.1.3.A Library of Flow-Ecology Curves/TypeI_Curves_SCoastdata"
+#set dir type1 curves
+scoast_curves_dir <- paste0(curves_dir, "TypeI_Curves_SCoastdata/")
 
 #list all files in scoast_curves_dir
 scc.files <- list.files(scoast_curves_dir)
@@ -229,16 +231,18 @@ for(i in 1:length(scc.files)) {
   #replace all "None" to NA
   scc.i <- data.frame(lapply(scc.i, function(x) {gsub("None", NA, x)}), check.names = FALSE) 
   
-  
+  #find index, which is col name 1
   index.i<-colnames(scc.i)[1]
+  #find flow metric name, which is col name 2
   names.i<-colnames(scc.i)[2]
   
+  #create new columns for index and FFM
   scc.i$index<-NA
   scc.i$FFM<-NA
-  
+  #set index and FFM to index.i and names.i
   scc.i$index<-rep(index.i, length(scc.i$index))
   scc.i$FFM<-rep(names.i, length((scc.i$FFM)))
-  
+  #rename col names 
   colnames(scc.i)[1]= "Probability"
   colnames(scc.i)[2]="Delta_FFM"
   
@@ -257,6 +261,8 @@ output.df.scc.join <- output.df.scc2 %>%
 
 #write csv the final output.df.ffm.join, save into original directory where csvs were saved
 out.csv.scc.name <- "TypeI_SCoast_CSCI_ASCI_probability_deltaFFM.csv"
+
+
 #write csv to original directory with output.csv.fname pasted to it
 write.csv(output.df.scc.join, paste0(scoast_curves_dir, out.csv.scc.name), row.names = FALSE)
 
@@ -264,8 +270,10 @@ write.csv(output.df.scc.join, paste0(scoast_curves_dir, out.csv.scc.name), row.n
 ## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
 ##  TypeI_EcoRisk_Curves_Tidy
 
-eco_risk_dir<-"C:/Users/GisUser/SCCWRP/Staff - P Drive/Data/PartTimers/SaraCuadra/DataTidy/3.1.3.A Library of Flow-Ecology Curves/TypeI_EcoRisk_Curves_SCoastdata"
+#set dir for eco_risk
+eco_risk_dir <- paste0(curves_dir, "TypeI_EcoRisk_Curves_SCoastdata/")
 
+#list files in eco_risk_dir
 eco.files <- list.files(eco_risk_dir)
 #get the long file name (with directory, will use this to read in csvs)
 eco.file.lng <- list.files(eco_risk_dir, full.names = TRUE)
@@ -342,73 +350,77 @@ write.csv(output.df.eco.join, paste0(eco_risk_dir, out.csv.eco.name), row.names 
 ## Tidying 3.1.3.A Flow ecology relationships for key eco management goals
 ##  TypeII_Curves_Tidy
 
-curves_dir <- "C:/Users/GisUser/SCCWRP/Staff - P Drive/Data/PartTimers/SaraCuadra/DataTidy/3.1.3.A Library of Flow-Ecology Curves"
-typeII_dir<-"C:/Users/GisUser/SCCWRP/Staff - P Drive/Data/PartTimers/SaraCuadra/DataTidy/3.1.3.A Library of Flow-Ecology Curves/TypeII_Curves"
+#set dir of typeII_dir
+typeII_dir <- paste0(curves_dir, "TypeII_Curves/")
 
-
+#read in eco csvs to be tidied
 #some headers contain special characters (like parentheses), read_csv reads in the characters. read.csv will replace the characters with periods
-eco_hab <- read_csv("eco_hab_area.csv")
-eco_meta<-read_csv("eco_meta.csv")
-eco_period<-read_csv("eco_periodicity.csv")
-eco_suit<-read_csv("eco_hab_suit.csv")
-eco_passage<-read_csv("eco_passage.csv")
-eco_pf<-read_csv("eco_passage_flow (Site LOI).csv")
+eco_hab <- read_csv(paste0(typeII_dir, "eco_hab_area.csv"))
+eco_meta <-read_csv(paste0(typeII_dir, "eco_meta.csv"))
+eco_period <-read_csv(paste0(typeII_dir, "eco_periodicity.csv"))
+eco_suit <-read_csv(paste0(typeII_dir, "eco_hab_suit.csv"))
+eco_passage <-read_csv(paste0(typeII_dir, "eco_passage.csv"))
+eco_pf <-read_csv(paste0(typeII_dir, "eco_passage_flow (Site LOI).csv"))
 
 #remove the last column that RStudio introduced to the eco_pf df  
-eco_pf<-eco_pf[,-7]
+eco_pf <-eco_pf[,-7]
 
 
 #filter where need = habitat_area
-eco_period2<-eco_period%>%
+eco_period2 <-eco_period %>%
   filter(Need=="habitat_area")
 
 #filter where need = passage
-eco_period3<-eco_period%>%
+eco_period3 <-eco_period %>%
   filter(Need=="passage")
 
 
 
 #left joins
 output.df.hab.join <- eco_hab %>% 
-  left_join(eco_meta, by=c("Species"="Code"))%>%
+  left_join(eco_meta, by=c("Species"="Code")) %>%
   select(-c("Type", "Notes"))
 
-output.df.hab.join2<-output.df.hab.join%>%
-  left_join(eco_period2, by=c("Species"="Species", "Lifestage"="Lifestage"))%>%
-  select(-c("Flag", "Notes", "Species", "Need"))
+output.df.hab.join2 <-output.df.hab.join %>%
+  left_join(eco_period2, by=c("Species"="Species", "Lifestage"="Lifestage")) %>%
+  select(-c("Flag", "Notes", "Need"))
 
-write.csv(output.df.hab.join2, "eco_hab_area_SFE_LOIs.csv", row.names=FALSE )
+#file name
+fname.hab <- paste0(typeII_dir, "eco_hab_area_SFE_LOIs.csv")
+write.csv(output.df.hab.join2, fname.hab, row.names=FALSE )
 
 
-output.df.hab.met.join<-eco_suit%>%
-  left_join(eco_meta, by =c("Species"= "Code"))%>%
+output.df.hab.met.join <- eco_suit %>%
+  left_join(eco_meta, by =c("Species"= "Code")) %>%
   select(-c("Type", "Notes"))
 
 write.csv(output.df.hab.met.join, "eco_hab_suit_relationships.csv", row.names=FALSE )
 
 
 
-output.df.pass.join<-eco_passage%>%
-  select(-c("Note", "Reference"))%>%
-  left_join(eco_meta, by=c("Species"="Code"))%>%
-  left_join(eco_period3, by=c("Species"="Species", "Lifestage"="Lifestage"))%>%
+output.df.pass.join <- eco_passage %>%
+  select(-c("Note", "Reference")) %>%
+  left_join(eco_meta, by=c("Species"="Code")) %>%
+  left_join(eco_period3, by=c("Species"="Species", "Lifestage"="Lifestage")) %>%
   select(-c("Notes.x", "Notes.y", "Flag", "Type", "Need"))
 
 write.csv(output.df.pass.join, "eco_passage_depth_needs.csv", row.names=FALSE )
 
-depth_needs<-read_csv("eco_passage_depth_needs.csv")
 
-output.df.pf.join<-eco_pf%>%
-  left_join(depth_needs, by=c("Species"= "Species", "Lifestage"="Lifestage"))%>%
+depth_needs <- read_csv(paste0(typeII.dir, "eco_passage_depth_needs.csv"))
+
+output.df.pf.join <- eco_pf %>%
+  left_join(depth_needs, by=c("Species"= "Species", "Lifestage"="Lifestage")) %>%
   select(-c("indices"))
 
 write.csv(output.df.pf.join, "eco_passage_flow_SFE_LOIs.csv", row.names=FALSE )
 
 
 
-output.df.period.join<-eco_period%>%
-  left_join(eco_meta, by=c("Species"= "Code"))%>%
+output.df.period.join <- eco_period %>%
+  left_join(eco_meta, by=c("Species"= "Code")) %>%
   select(-c("Flag", "Notes.x", "Notes.y", "Type"))
+
 write.csv(output.df.period.join, "eco_periodicity_lifestage_need_refs.csv", row.names=FALSE)
 
 
