@@ -38,7 +38,7 @@ gage.fnames <- list.files(paste0(ER_dir,"/GAGES/"))
 fname.split <- str_split(gage.fnames, pattern="_")
 
 #lookup table with gage_ID and model_ID
-lookup <- read.csv(file=paste0(ER_dir, "/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv"), check.names = FALSE) %>% 
+lookup <- read.csv(file=paste0(ER_dir, "/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv")) %>% 
   #create new column with model_ID
   mutate(model_ID = paste0("ER_", PRMS.Subbasin))
 
