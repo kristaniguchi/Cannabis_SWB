@@ -29,6 +29,13 @@
 #data directories (location where csv files are saved - change to your local directory for each folder)
 FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River/csv_results/"
 
+#set working directory to FFM_dir
+setwd(FFM_dir)
+
+#read in FFM lookup table for plots to get official names - saved in working directory 2 folders back
+metric.names <- read.csv("././all_metric_def_list_FFMs_v2.csv")
+
+
 ############################################################################################################################
 ## Tidying Eel River modeled and gaged functional flow metric values, only keep gage and associated model node FFM
 
@@ -121,7 +128,7 @@ pred.percentiles <- model.ffm.ER.sub %>%
     #2b. R2
     #2c. PBIAS   
     #2d. NSE  
-## Note: could not evaluate performance for metrics that have <10 values calculated at a gage including certain peak flow metrics since only 1 value calculated across POR
+## Note: could not evaluate performance for metrics that have <10 values calculated at a gage or model node including certain peak flow metrics since only 1 value calculated across POR
 #####
 
 ### 1. Evaluate dispersion
@@ -131,13 +138,13 @@ pred.percentiles <- model.ffm.ER.sub %>%
 ######### update code from here
 #create output df of all evaluation criteria per FFM per gage
 eval.criteria.all <- data.frame(matrix(NA, 1, 8))
-names(eval.criteria.all) <- c("gage_ID", 'model_ID', 'comid', 'FFM', 'I80R_10_90', 'IQR_25_75', "n_values", "n_values_pred")
+names(eval.criteria.all) <- c("gage_ID", 'model_ID', 'COMID', 'FFM', 'I80R_10_90', 'IQR_25_75', "n_values", "n_values_pred")
 
 #unique FFMs to go through
 unique.gageid.ffm <- unique(gage.ffm.ER$gage_ID_FFM)
 
 #to test loop, run i=1 outside of loop and run everything inside
-i=1
+i=2
 
 for(i in 1:length(unique.gageid.ffm)) {
   #subset to unique.gageid.ffm i, omit rows with NA
@@ -146,7 +153,7 @@ for(i in 1:length(unique.gageid.ffm)) {
     na.omit()
   
   #if all NA values or less than 10 values, skip
-  if(length(gage.ffm.ER.i$value) < 10){
+  if(length(gage.ffm.ER.i$Value) < 10){
     #skip
   }else{
     #FFM 
@@ -161,7 +168,7 @@ for(i in 1:length(unique.gageid.ffm)) {
     #1. evaluate dispersion (% of values within IQR and I80R) excluding calculations for peak mag metrics (1 value per gage)
     
     #if peak magnitude metrics, IQR and I80R = NA (since only 1 value). Else, calculate IQR and I80R
-    if(identical(FFM,"Peak_2") | identical(FFM,"Peak_5") | identical(FFM,"Peak_5") ){
+    if(identical(FFM,"Peak_2") | identical(FFM,"Peak_5") | identical(FFM,"Peak_10") ){
       I80R_10_90 <- NA
       IQR_25_75 <- NA
       length_n <- 1 #duplicate mag metrics with 1 value. 
@@ -189,41 +196,323 @@ for(i in 1:length(unique.gageid.ffm)) {
   }
 }
 
+#remove first NA row
+eval.criteria.all <- eval.criteria.all[2:length(eval.criteria.all$gage_ID),]
+
 #make a copy of eval.criteria.all
 eval.criteria.all.orig <- eval.criteria.all
 
-#if n_values < 10, put NA for percent IQR values and O_E values, not enough values to assess
-#set n_values as numeric
+#if n_values < 10 for gages or model, put NA for percent IQR values, not enough values to assess
+#set n_values as numeric for gages
 eval.criteria.all$n_values <- as.numeric(eval.criteria.all$n_values)
 #set I80R_10_90 as NA if < 10 values
 eval.criteria.all$I80R_10_90[eval.criteria.all$n_values < 10] <- NA
 #set IQR_25_75 as NA if < 10 values
 eval.criteria.all$IQR_25_75[eval.criteria.all$n_values < 10] <- NA
-#set O_E as NA if < 10 values
-eval.criteria.all$O_E[eval.criteria.all$n_values < 10] <- NA
-
-#for peak magnitude metrics, use O_E value for each gage (okay that n<10 because not using median O_E)
-#find index of peak mag metrics
-ind.peak <- grep("d_peak", eval.criteria.all$FFM)
-eval.criteria.all$O_E[ind.peak] <- as.numeric(eval.criteria.all$median.obs[ind.peak])/as.numeric(eval.criteria.all$median.pred[ind.peak])
+#set n_values as numeric for model
+eval.criteria.all$n_values_pred <- as.numeric(eval.criteria.all$n_values_pred)
+#set I80R_10_90 as NA if < 10 values
+eval.criteria.all$I80R_10_90[eval.criteria.all$n_values_pred < 10] <- NA
+#set IQR_25_75 as NA if < 10 values
+eval.criteria.all$IQR_25_75[eval.criteria.all$n_values_pred < 10] <- NA
 
 #filter evaluation criteria for csv to read
-#keep evaluation criteria for peaks (okay that n<10 because not using median O_E)
-eval.criteria.peak <- eval.criteria.all[ind.peak,]
-#filter out rows that have n<10
+#filter out rows that have n<10 for gages and model nodes
 eval.criteria.all.filter <- eval.criteria.all %>% 
   filter(n_values > 9) %>% 
-  #combine with eval.criteria.peak
-  bind_rows(eval.criteria.peak)
+  filter(n_values_pred > 9) %>% 
+  #create gage_ID_FFM column
+  mutate(gage_ID_FFM = paste0(gage_ID, " ", FFM))
 
-#summarize number of testing gages per metric
+#summarize number of gages per metric
 summary.testing <- eval.criteria.all.filter %>% 
   group_by(FFM) %>% 
   count() %>% 
   ungroup()
 
-#write csv for eval.criteria.all.filter to know which gages are testing gages for each FFM
-write.csv(eval.criteria.all.filter, file=glue("./data/output_05/final_testing_gages_used_all_FFM_test12_sametest11_allgages_{Sys.Date()}.csv"))
+
+##################################################################################
+## 2. evaluate annual FFM values - compared annual FFM modeled value to annual FFM observed/gage value
+    #2a. O/E: mean O/E was calculated for each gage and flow metric
+    #2b. R2
+    #2c. PBIAS   
+    #2d. NSE  
+
+#loop through each gage_ID_FFM and calculate O:E, R2, PBIAS, NSE for pred and obs annual values
+unique.gage.ffm <- unique(eval.criteria.all.filter$gage_ID_FFM)
+
+#create output df of all performance criteria per FFM 
+perf.criteria.FFM <- data.frame(matrix(NA, 1, 18))
+names(perf.criteria.FFM) <- c("gage_ID", "model_ID", "gage_type", "FFM", "composite_index", "composite_index_disp", "IQR_25_75", "I80R_10_90", "PBIAS", "NSE", "mean_O_E", "R2", "PBIAS_scaled", "IQR_25_75_scaled", "I80R_10_90_scaled", "NSE_scaled", "mean_O_E_scaled", "n_annual_gage_model")
 
 
-###reminder: need to add O/E in next chunk of code
+for(j in 1:(length(unique.gage.ffm))){
+  #subset eval.criteria.all to unique.gage.ffm j
+  eval.criteria.all.sub <- eval.criteria.all.filter %>% 
+    filter(gage_ID_FFM == unique.gage.ffm[j])
+  
+  #subset gage data for unique.gage.ffm j
+  gage.ffm.ER.sub <- gage.ffm.ER %>% 
+    filter(gage_ID_FFM == unique.gage.ffm[j])
+  
+  #subset model data for unique.gage.ffm j
+  model.ffm.ER.sub.j <- model.ffm.ER.sub %>% 
+    #add gage_ID and gage_ID_FFM from lookup table, rename to gage_ID, add gage_ID_FFM, and select only columns needed
+    left_join(lookup.ER, by = "model_ID") %>% 
+    rename("gage_ID" = "Gage.ID") %>% 
+    mutate(gage_ID_FFM = paste0(gage_ID, " ",FFM)) %>% 
+    #filter by unique.gage.ffm j
+    filter(gage_ID_FFM == unique.gage.ffm[j]) %>% 
+    select(Year, FFM, Value, model_ID, scenario, COMID, model_ID_FFM, gage_ID, Type, gage_ID_FFM) %>% 
+    #rename Value to value_model
+    rename("Value_model"= "Value")
+  
+  #combine gage and model data together into common df by year
+  gage.model.FFM.join <- gage.ffm.ER.sub %>% 
+    inner_join(model.ffm.ER.sub.j, by=c("Year", "FFM", "gage_ID", "COMID", "gage_ID_FFM"))
+
+  #determine n years in common --> should have at least 10 to move forward
+  n_annual_gage_model <- length(gage.model.FFM.join$Year)
+  
+  #if <10 years of annual data in common, can only look at dispersion, not enough data to look at annual performance
+  if(n_annual_gage_model < 10){
+    #only have enough data to look at dispersion
+    #IQR scaled: take absolute value from diff between calculated value and 50 divided by 50 and subtracted by 1
+    IQR_25_75_scaled <- 1-(abs(as.numeric(eval.criteria.all.sub$IQR_25_75)-50)/50)
+    I80R_10_90_scaled <- 1-(abs(as.numeric(eval.criteria.all.sub$I80R_10_90)-80)/80)
+    
+    #composite performance index (mean of all 6 criteria)
+    composite_index_all <- NA
+    composite_index_disp <- mean(c(I80R_10_90_scaled, IQR_25_75_scaled), na.rm=TRUE)
+    
+    #save all values in output for evaluation (raw, scaled, composite) --> for annual metrics, set as NA
+    perf.criteria.FFM[j,] <- c(eval.criteria.all.sub$gage_ID, eval.criteria.all.sub$model_ID, unique(model.ffm.ER.sub.j$Type), eval.criteria.all.sub$FFM, composite_index_all, composite_index_disp, eval.criteria.all.sub$IQR_25_75, eval.criteria.all.sub$I80R_10_90, NA, NA, NA, NA, NA, IQR_25_75_scaled, I80R_10_90_scaled, NA, NA, n_annual_gage_model)
+    
+  }else{
+    
+    ###Calculate suite of metrics for annual FFM evaluation
+    #calculate O:E and mean O/E across all years
+    gage.model.FFM.join <- gage.model.FFM.join %>% 
+      mutate(O_E = Value_model/Value)
+    
+    #mean O/E, raw value
+    mean_O_E <- mean(as.numeric(gage.model.FFM.join$O_E), na.rm = TRUE)
+    
+    #R2
+    rsq <- function(x, y) summary(lm(y~x))$r.squared
+    R2 <- rsq(as.numeric(gage.model.FFM.join$Value), as.numeric(gage.model.FFM.join$Value_model))
+    
+    #percent bias
+    PBIAS <- pbias(as.numeric(gage.model.FFM.join$Value), as.numeric(gage.model.FFM.join$Value_model))
+    
+    #NSE: Nash-Sutcliffe Efficiency
+    NSE <- NSE(as.numeric(gage.model.FFM.join$Value), as.numeric(gage.model.FFM.join$Value_model))
+    
+    ###scaled evaluation criteria all from 0 to 1
+    
+    #O/E scaled, for values >1, take the inverse (1/O_E)
+    O_E_scaled <- na.omit(as.numeric(gage.model.FFM.join$O_E))
+    #for all values >1, take inverse 1/O:E
+    O_E_scaled[O_E_scaled > 1] <- 1/O_E_scaled[O_E_scaled > 1]
+    #mean O/E scaled
+    mean_O_E_scaled <- mean(O_E_scaled)
+    
+    #NSE scaled, if values < 0 set to 0
+    if(NSE<0) {
+      NSE_scaled <- 0
+    }else{
+      NSE_scaled <- NSE
+    }
+    
+    #IQR scaled: take absolute value from diff between calculated value and 50 divided by 50 and subtracted by 1
+    IQR_25_75_scaled <- 1-(abs(as.numeric(eval.criteria.all.sub$IQR_25_75)-50)/50)
+    I80R_10_90_scaled <- 1-(abs(as.numeric(eval.criteria.all.sub$I80R_10_90)-80)/80)
+    
+    #percent bias scaled
+    PBIAS_scaled <- (100-abs(PBIAS))/100
+    #if scaled is negative, means that original was over 100
+    if(PBIAS_scaled < 0){
+      PBIAS_scaled <- 0
+    }
+    
+    #composite performance index (mean of all 6 criteria)
+    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, O_E_scaled, R2), na.rm=TRUE)
+    composite_index_disp <- mean(c(I80R_10_90_scaled, IQR_25_75_scaled), na.rm=TRUE)
+    
+    #save all values in output for evaluation (raw, scaled, composite)
+    perf.criteria.FFM[j,] <- c(eval.criteria.all.sub$gage_ID, eval.criteria.all.sub$model_ID, unique(model.ffm.ER.sub.j$Type), eval.criteria.all.sub$FFM, composite_index_all, composite_index_disp, eval.criteria.all.sub$IQR_25_75, eval.criteria.all.sub$I80R_10_90, PBIAS, NSE, mean_O_E, R2, PBIAS_scaled, IQR_25_75_scaled, I80R_10_90_scaled, NSE_scaled, mean_O_E_scaled, n_annual_gage_model)
+    
+  }
+}
+
+#write the overall performance table so anyone can view the results, save in 1 directory back
+write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all.csv")
+
+#tidy performance table for heatmap - composite using all criteria
+perf.criteria.FFM.table <- perf.criteria.FFM %>% 
+  select(gage_ID, FFM, composite_index, gage_type) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index)
+
+#tidy performance table for heatmap - composite using dispersion only
+perf.criteria.FFM.table.disp <- perf.criteria.FFM %>% 
+  select(gage_ID, FFM, composite_index_disp, gage_type) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index_disp)
+
+#round all columns except FFM by 2 digits
+perf.criteria.FFM.table[,3:20] <- round(data.frame(lapply(perf.criteria.FFM.table[,3:20],as.numeric)), 2)
+perf.criteria.FFM.table.disp[,3:20] <- round(data.frame(lapply(perf.criteria.FFM.table.disp[,3:20],as.numeric)), 2)
+
+
+##########
+#####create heatmap of this table based on the categories for composite index all
+#pivot longer table
+#find ffm col names to pivot longer
+ffm.col.names <- names(perf.criteria.FFM.table)[3:20]
+#remove peak timings as not standard FFM
+ind.peak.tim <- grep("^Peak_Tim_*", ffm.col.names)
+#if peak timing, then remove metric
+if(length(ind.peak.tim > 0)){
+  ffm.col.names <- ffm.col.names[-ind.peak.tim]
+}
+
+ffm_comp_ind_longer <- perf.criteria.FFM.table %>% 
+  pivot_longer(cols = ffm.col.names,
+               values_to = "Composite_Index",
+               names_to = "FFM") %>% 
+  left_join(metric.names, by = c("FFM" = "flow_metric"))
+
+# #set levels for Performance Criteria
+# ffm_comp_ind_longer$'Performance Criteria' <- factor(ffm_comp_ind_longer$'Performance Criteria', levels = c('IQR_25_75_mean_scaled', 'I80R_10_90_mean_scaled', "mean_O_E_scaled",'PBIAS_scaled', 'R2', 'NSE', "composite_index"))
+#create rating for each based on criteria values
+ffm_comp_ind_longer$rating <- NA
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index < 0.5] <- "poor"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.5 & ffm_comp_ind_longer$Composite_Index < 0.65] <- "satisfactory"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.65 & ffm_comp_ind_longer$Composite_Index < 0.81] <- "good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.81 & ffm_comp_ind_longer$Composite_Index < 0.9] <- "very good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.81 & ffm_comp_ind_longer$Composite_Index < 0.9] <- "very good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.9] <- "excellent"
+#save as factor
+ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poor", "satisfactory", "good", "very good", "excellent", NA))
+
+#add an asterix to any validation gage_ID
+#find index of validation gages
+ind.val <- grep("Validation", ffm_comp_ind_longer$gage_type)
+#make a copy of gage_type
+ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
+#set validation gages with asterix
+ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
+
+#heatmap
+
+#create color lookup table
+colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
+rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
+rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
+rating_labels <- paste0(rating, " (", rating_values, ")")
+rating_labels[6] <- NA
+
+heatmap <- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = colors, labels = rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index All") 
+
+plot(heatmap)
+  
+#write heatmap as jpg
+ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_all.jpg", width = 11, height = 5, dpi=300)
+
+############
+#####create heatmap of this table based on the categories for composite index for dispersion only
+#pivot longer table
+#find ffm col names to pivot longer
+ffm.col.names <- names(perf.criteria.FFM.table.disp)[3:20]
+#remove peak timings as not standard FFM
+ind.peak.tim <- grep("^Peak_Tim_*", ffm.col.names)
+#if peak timing, then remove metric
+if(length(ind.peak.tim > 0)){
+  ffm.col.names <- ffm.col.names[-ind.peak.tim]
+}
+
+ffm_comp_ind_longer <- perf.criteria.FFM.table.disp %>% 
+  pivot_longer(cols = ffm.col.names,
+               values_to = "Composite_Index_Disp",
+               names_to = "FFM") %>% 
+  left_join(metric.names, by = c("FFM" = "flow_metric"))
+
+# #set levels for Performance Criteria
+# ffm_comp_ind_longer$'Performance Criteria' <- factor(ffm_comp_ind_longer$'Performance Criteria', levels = c('IQR_25_75_mean_scaled', 'I80R_10_90_mean_scaled', "mean_O_E_scaled",'PBIAS_scaled', 'R2', 'NSE', "Composite_Index_Disp"))
+#create rating for each based on criteria values
+ffm_comp_ind_longer$rating <- NA
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp < 0.5] <- "poor"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.5 & ffm_comp_ind_longer$Composite_Index_Disp < 0.65] <- "satisfactory"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.65 & ffm_comp_ind_longer$Composite_Index_Disp < 0.81] <- "good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.81 & ffm_comp_ind_longer$Composite_Index_Disp < 0.9] <- "very good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.81 & ffm_comp_ind_longer$Composite_Index_Disp < 0.9] <- "very good"
+ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.9] <- "excellent"
+#save as factor
+ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poor", "satisfactory", "good", "very good", "excellent", NA))
+
+#add an asterix to any validation gage_ID
+#find index of validation gages
+ind.val <- grep("Validation", ffm_comp_ind_longer$gage_type)
+#make a copy of gage_type
+ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
+#set validation gages with asterix
+ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
+
+#heatmap
+
+#create color lookup table
+colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
+rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
+rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
+rating_labels <- paste0(rating, " (", rating_values, ")")
+rating_labels[6] <- NA
+
+heatmap_disp<- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index_Disp), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = colors, labels = rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index Dispersion") 
+
+plot(heatmap_disp)
+
+#write heatmap as jpg
+ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion.jpg", width = 11, height = 5, dpi=300)
+
+
+
+
+#####################################################################################
+
