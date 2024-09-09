@@ -27,13 +27,14 @@
 }
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River/csv_results/"
+#FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River/csv_results/"
+FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River_recal_083024/csv_results/"
 
 #set working directory to FFM_dir
 setwd(FFM_dir)
 
 #read in FFM lookup table for plots to get official names - saved in working directory 2 folders back
-metric.names <- read.csv("././all_metric_def_list_FFMs_v2.csv")
+metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv")
 
 
 ############################################################################################################################
@@ -44,10 +45,15 @@ lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General
   #create col with model_ID
   mutate(model_ID = paste0("ER_", PRMS.Subbasin))
 
+#2 gages are reference from 1985-2000.  Need to subset FFM data for those two.  Lookup
+gage.ref <- c(11476500, 11475800)
+gage.ref.years <- c(1985, 2000)
+
+
 #list all files in FFM_dir
 list.files.all <- list.files(FFM_dir, full.names=TRUE)
-#find file index for only Eel River (ER) gage and model data
-ind.ER <- grep("ER_", list.files.all)
+#find file index for only Eel River (ER) gage and model data (using date because extra files not deleted)
+ind.ER <- grep("2024-09-08", list.files.all)
 #subset to ER only
 list.files.ER <- list.files.all[ind.ER]
 # #can delete line below later, but only using KTQ files since original ER gage data need to be reformatted
@@ -61,6 +67,9 @@ gage.ffm.ER <- read.csv(list.files.ER[ind.gage.ER]) %>%
   na.omit() %>% 
   #create new column of model_ID and FFM
   mutate(gage_ID_FFM = paste0(gage_ID, " ", FFM))
+
+#for 2 gages, remove years that were not considered unimpaired
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11476500 | gage.ffm.ER$gage_ID == 11475800) & (gage.ffm.ER$Year<1985 | gage.ffm.ER$Year>2000)),]
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
@@ -77,7 +86,6 @@ model.ffm.ER <- read.csv(list.files.ER[ind.model.ER]) %>%
   na.omit() %>% 
   #create new column of model_ID and FFM
   mutate(model_ID_FFM = paste0(model_ID, " ", FFM)) 
-
 
 
 #find unique gageIDs
@@ -346,7 +354,7 @@ for(j in 1:(length(unique.gage.ffm))){
 }
 
 #write the overall performance table so anyone can view the results, save in 1 directory back
-write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all.csv")
+write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all_Eelrecal_spsum.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
@@ -402,7 +410,14 @@ ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
 #set validation gages with asterix
 ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
 
-#heatmap
+#add in subbasins to ffm_comp_ind_longer
+ffm_comp_ind_longer2 <- ffm_comp_ind_longer %>% 
+  mutate(gage_ID = as.numeric(gage_ID)) %>% 
+  left_join(lookup.ER, by = c("gage_ID"= "Gage.ID")) 
+
+#sort gages by reference first, NA
+
+#heatmap using all gages
 
 #create color lookup table
 colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
@@ -411,7 +426,7 @@ rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
 rating_labels <- paste0(rating, " (", rating_values, ")")
 rating_labels[6] <- NA
 
-heatmap <- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
+heatmap <- ggplot(ffm_comp_ind_longer2, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
   geom_tile(aes(fill = rating)) +
   
@@ -430,12 +445,96 @@ heatmap <- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
         panel.grid = element_blank(), 
         panel.background = element_rect(fill = "white"),
         axis.ticks = element_blank()) +
-  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index All") 
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index All") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
 
 plot(heatmap)
   
 #write heatmap as jpg
 ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_all.jpg", width = 11, height = 5, dpi=300)
+
+
+#heatmap using calibration gages (reference only)
+
+#create color lookup table
+colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
+rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
+rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
+rating_labels <- paste0(rating, " (", rating_values, ")")
+rating_labels[6] <- NA
+
+ref.filter <- ffm_comp_ind_longer2 %>% 
+  filter(gage_type == "Reference") 
+
+heatmap <- ggplot(ref.filter, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = colors, labels = rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index All") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
+
+plot(heatmap)
+
+#write heatmap as jpg
+ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_refgages.jpg", width = 11, height = 5, dpi=300)
+
+
+###heat map for 2 validation gages in middle fork that have minimal impairment
+val.filter <- ffm_comp_ind_longer2[ffm_comp_ind_longer2$gage_ID == 11472800 | ffm_comp_ind_longer2$gage_ID == 11472900,]
+
+#create color lookup table
+colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
+rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
+rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
+rating_labels <- paste0(rating, " (", rating_values, ")")
+rating_labels[6] <- NA
+#filter lu table because missing excellent and colors were off
+unique.ratings <- unique(val.filter$rating)
+lu.cols <- data.frame(cbind(colors, rating, rating_labels))
+lu.cols <- lu.cols[lu.cols$rating %in% unique.ratings,]
+
+heatmap <- ggplot(val.filter, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = lu.cols$colors, labels = lu.cols$rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index All") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
+
+plot(heatmap)
+
+#write heatmap as jpg
+ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_all_valgages.jpg", width = 11, height = 5, dpi=300)
+
 
 ############
 #####create heatmap of this table based on the categories for composite index for dispersion only
@@ -453,7 +552,9 @@ ffm_comp_ind_longer <- perf.criteria.FFM.table.disp %>%
   pivot_longer(cols = ffm.col.names,
                values_to = "Composite_Index_Disp",
                names_to = "FFM") %>% 
-  left_join(metric.names, by = c("FFM" = "flow_metric"))
+  left_join(metric.names, by = c("FFM" = "flow_metric")) %>% 
+  mutate(gage_ID = as.numeric(gage_ID)) %>%
+  left_join(lookup.ER, by = c("gage_ID"= "Gage.ID")) 
 
 # #set levels for Performance Criteria
 # ffm_comp_ind_longer$'Performance Criteria' <- factor(ffm_comp_ind_longer$'Performance Criteria', levels = c('IQR_25_75_mean_scaled', 'I80R_10_90_mean_scaled', "mean_O_E_scaled",'PBIAS_scaled', 'R2', 'NSE', "Composite_Index_Disp"))
@@ -476,7 +577,7 @@ ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
 #set validation gages with asterix
 ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
 
-#heatmap
+#heatmap using all gages
 
 #create color lookup table
 colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
@@ -504,14 +605,78 @@ heatmap_disp<- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
         panel.grid = element_blank(), 
         panel.background = element_rect(fill = "white"),
         axis.ticks = element_blank()) +
-  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index Dispersion") 
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index Dispersion") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
 
 plot(heatmap_disp)
 
 #write heatmap as jpg
-ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion.jpg", width = 11, height = 5, dpi=300)
+ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion_all.jpg", width = 11, height = 5, dpi=300)
 
 
+#only plot reference gages
+ref.filter <- ffm_comp_ind_longer %>% 
+  filter(gage_type == "Reference") 
+
+
+heatmap_disp2<- ggplot(ref.filter, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index_Disp), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = colors, labels = rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index Dispersion") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
+
+plot(heatmap_disp2)
+
+#write heatmap as jpg
+ggsave(heatmap_disp2, file="../FFM_eval/Model_performance_FFM_composite_dispersion_reference.jpg", width = 11, height = 5, dpi=300)
+
+
+
+###heat map for 2 validation gages in middle fork that have minimal impairment
+val.filter <- ffm_comp_ind_longer[ffm_comp_ind_longer$gage_ID == 11472800 | ffm_comp_ind_longer$gage_ID == 11472900,]
+
+heatmap_disp2<- ggplot(val.filter, aes(y=title_name, x = gage_ID2)) +
+  #make heatmap with geom_tile based on criteria values
+  geom_tile(aes(fill = rating)) +
+  
+  #add the criteria values to each tile
+  geom_text(aes(label = Composite_Index_Disp), color = "black") + 
+  #some formatting to make things easier to read
+  scale_x_discrete(position = "top") +
+  scale_fill_manual(values = colors, labels = rating_labels) +
+  #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
+  theme(legend.position = "bottom", 
+        legend.box = "horizontal",
+        legend.margin = margin(),
+        #axis.text.x = element_text(angle = 75, vjust = 0.5, hjust=1),
+        axis.text.x = element_text(angle = 90),
+        
+        panel.grid = element_blank(), 
+        panel.background = element_rect(fill = "white"),
+        axis.ticks = element_blank()) +
+  labs(y = "Functional Flow Metric ", x = "Gage ID", title = "Composite Index Dispersion") +
+  facet_grid(~HUC8.Subarea, scales = "free_x", space = "free_x")
+
+plot(heatmap_disp2)
+
+#write heatmap as jpg
+ggsave(heatmap_disp2, file="../FFM_eval/Model_performance_FFM_composite_dispersion_val.jpg", width = 10, height = 5, dpi=300)
 
 
 #####################################################################################
