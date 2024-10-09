@@ -6,6 +6,11 @@
 #'  PRMS watershed model flow timeseries data for:
 #'    Eel River
 #'    Can add other PRMS watersheds when SWB sends them and add to this script
+#'    
+#'    Notes for Eel:
+#'      2 SFE gages had reference time periods 1985-2000, only look at reference years
+#'      MF reference gage split calibration WY 1985-2010, validation WY 2011-2021. only look at validation period for performance
+#'      SFE miranda gage changed to reference validation gage
 #'      
 #'@author Kris Taniguchi-Quan, SCCWRP
 #'
@@ -28,7 +33,10 @@
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 #FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River/csv_results/"
+#FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River_recal_083024/csv_results/"
+#Eel final recalibration
 FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River_recal_083024/csv_results/"
+
 
 #set working directory to FFM_dir
 setwd(FFM_dir)
@@ -48,6 +56,8 @@ lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General
 #2 gages are reference from 1985-2000.  Need to subset FFM data for those two.  Lookup
 gage.ref <- c(11476500, 11475800)
 gage.ref.years <- c(1985, 2000)
+#also need to subset reference gage MF Dos Rios 11473900 to WY 2011-2021 (validation period)
+
 
 
 #list all files in FFM_dir
@@ -68,8 +78,11 @@ gage.ffm.ER <- read.csv(list.files.ER[ind.gage.ER]) %>%
   #create new column of model_ID and FFM
   mutate(gage_ID_FFM = paste0(gage_ID, " ", FFM))
 
-#for 2 gages, remove years that were not considered unimpaired
+#for 2 gages, remove years that were not considered unimpaired (<2011)
 gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11476500 | gage.ffm.ER$gage_ID == 11475800) & (gage.ffm.ER$Year<1985 | gage.ffm.ER$Year>2000)),]
+#for 1 MF dos rios ref gage, remove calibration years <=2011 to only look at ref validation period
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11473900) & (gage.ffm.ER$Year<2011)),]
+
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
@@ -271,7 +284,7 @@ for(j in 1:(length(unique.gage.ffm))){
     mutate(gage_ID_FFM = paste0(gage_ID, " ",FFM)) %>% 
     #filter by unique.gage.ffm j
     filter(gage_ID_FFM == unique.gage.ffm[j]) %>% 
-    select(Year, FFM, Value, model_ID, scenario, COMID, model_ID_FFM, gage_ID, Type, gage_ID_FFM) %>% 
+    select(Year, FFM, Value, model_ID, scenario, COMID, model_ID_FFM, gage_ID, Type2, gage_ID_FFM) %>% 
     #rename Value to value_model
     rename("Value_model"= "Value")
   
@@ -491,11 +504,11 @@ heatmap <- ggplot(ref.filter, aes(y=title_name, x = gage_ID2)) +
 plot(heatmap)
 
 #write heatmap as jpg
-ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_refgages.jpg", width = 11, height = 5, dpi=300)
+ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_all_refgages.jpg", width = 11, height = 5, dpi=300)
 
 
-###heat map for 2 validation gages in middle fork that have minimal impairment
-val.filter <- ffm_comp_ind_longer2[ffm_comp_ind_longer2$gage_ID == 11472800 | ffm_comp_ind_longer2$gage_ID == 11472900,]
+###heat map for 2 validation gages in middle fork that have minimal impairment and reference validation gage in SFE Miranda
+val.filter <- ffm_comp_ind_longer2[ffm_comp_ind_longer2$gage_ID == 11472800 | ffm_comp_ind_longer2$gage_ID == 11472900 | ffm_comp_ind_longer2$gage_ID == 11473900 | ffm_comp_ind_longer2$gage_ID == 11476500,] 
 
 #create color lookup table
 colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
@@ -614,7 +627,7 @@ plot(heatmap_disp)
 ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion_all.jpg", width = 11, height = 5, dpi=300)
 
 
-#only plot reference gages
+#only plot reference gages (calibration gages)
 ref.filter <- ffm_comp_ind_longer %>% 
   filter(gage_type == "Reference") 
 
@@ -648,8 +661,8 @@ ggsave(heatmap_disp2, file="../FFM_eval/Model_performance_FFM_composite_dispersi
 
 
 
-###heat map for 2 validation gages in middle fork that have minimal impairment
-val.filter <- ffm_comp_ind_longer[ffm_comp_ind_longer$gage_ID == 11472800 | ffm_comp_ind_longer$gage_ID == 11472900,]
+###heat map for 2 validation gages in middle fork that have minimal impairment, 1 ref validation MF, and one reference validation in SFE Miranda
+val.filter <- ffm_comp_ind_longer[ffm_comp_ind_longer$gage_ID == 11472800 | ffm_comp_ind_longer$gage_ID == 11472900 | ffm_comp_ind_longer$gage_ID == 11473900 | ffm_comp_ind_longer$gage_ID == 11476500,]
 
 heatmap_disp2<- ggplot(val.filter, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
