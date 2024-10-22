@@ -9,8 +9,9 @@
 #'    
 #'    Notes for Eel:
 #'      2 SFE gages had reference time periods 1985-2000, only look at reference years
-#'      MF reference gage split calibration WY 1985-2010, validation WY 2011-2021. only look at validation period for performance
-#'      SFE miranda gage changed to reference validation gage
+#'      11473900 MF reference gage split calibration WY 1985-2009, validation WY 2010-2021. only look at validation period for performance
+#'      11476500 SFE miranda gage changed to reference validation gage
+#'      11478500 Lower Eel Van Duzen now reference validation gage, Reference validation 2010-2021. Calibration from 1985-2009.
 #'      
 #'@author Kris Taniguchi-Quan, SCCWRP
 #'
@@ -80,9 +81,10 @@ gage.ffm.ER <- read.csv(list.files.ER[ind.gage.ER]) %>%
 
 #for 2 gages, remove years that were not considered unimpaired (<2011)
 gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11476500 | gage.ffm.ER$gage_ID == 11475800) & (gage.ffm.ER$Year<1985 | gage.ffm.ER$Year>2000)),]
-#for 1 MF dos rios ref gage, remove calibration years <=2011 to only look at ref validation period
-gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11473900) & (gage.ffm.ER$Year<2011)),]
-
+#for 1 MF dos rios ref gage, remove calibration years <=2010 to only look at ref validation period
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11473900) & (gage.ffm.ER$Year<2010)),]
+#for 1 Lower Eel ref gage, remove calibration years <2010
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11478500) & (gage.ffm.ER$Year<2010)),]
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
