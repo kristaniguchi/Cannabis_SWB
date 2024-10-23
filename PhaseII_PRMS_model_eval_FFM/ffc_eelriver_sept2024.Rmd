@@ -1,0 +1,353 @@
+---
+title: "ffc_eelriver_sept2024"
+author: "Adriana Le Compte, revised by Kris Taniguchi-Quan"
+date: "2024-10-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#### SET-UP : Load libaries, set token, and import data sources
+```{r load packages}
+#### load necessary libraries
+# for first time users, use the following line to install ffc tool package:
+# devtools::install_github('ceff-tech/ffc_api_client/ffcAPIClient')
+library(devtools)
+library(usethis)
+library(tidyverse)
+library(readxl)
+library(fs)
+library(ffcAPIClient)
+library(lubridate)
+library(magrittr)
+library(ggplot2)
+
+#### set-up token for use
+# token is unique to each user  
+ffctoken <- 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmaXJzdE5hbWUiOiJBZHJpYW5hIiwibGFzdE5hbWUiOiJMZSBDb21wdGUiLCJlbWFpbCI6ImFkcmlhbmFsc0BzY2N3cnAub3JnIiwicm9sZSI6IlVTRVIiLCJpYXQiOjE2OTMyNTA2Njl9.mjM3WqZJXJdaJHEqN5e5Fh90JFgERzERqxiksSCpGbE'
+
+#ffctoken <- ffcAPIClient::set_token(Sys.getenv("EFLOWS_TOKEN", ""))
+ffc <- ffcAPIClient::FFCProcessor$new()
+
+# set wd
+#setwd("C:/Users/adrianal/SCCWRP/Cannabis E-Flows - Data/Working/Watershed_Delineation_Tool/Modeled_Flow/")
+setwd("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/")
+```
+
+```{r import data}
+#### read-in data and lookup tables
+lu_model <- read_xlsx("Eel_River/Lookup_Tables/LOOKUP_table_all_v2_edits.xlsx", sheet = "LU_model") %>% 
+  filter(model_type == "PRMS",
+         Model_Watershed == "ER") 
+#read in gage lookup
+lu_gage <- read.csv("Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>% 
+  left_join(lu_model, by=c("PRMS.Subbasin"="Model_Subbasin"))
+#modeled PRMS outputs
+model_data <- read.csv("EEL_spring_summer_calibration_rev2/eel_subbasins.spring_summer_rev2_sub_cfs.csv", check.names = F)
+#gage data in Eel River
+gage_data <- ("Eel_River/GAGES")
+#functional flow metric names
+metric_categories_file <- read.csv("Eel_River/Lookup_Tables/all_metric_def_list_FFMs_v2 1.csv")
+
+#main_lookup <- left_join(lu_gage, lu_model %>% select(model_ID, COMID), by = "COMID")
+
+#### user specify the Model_Watershed abbreviation (Eel River is ER, Redwood Creek is RWC, Little River is LR, Red Wood Creek is RWC, Mad River is MR) based on the model_data csv name
+Model_Watershed_eval <- "ER"
+
+```
+
+#### LOOP 1 : loop through gage files for ffc calculations (loop takes approx 2 minutes to run for 15 files)
+```{r}
+# list the gage timeseries files you want to loop through
+gage_file_list <- list.files(gage_data, full.names = T)
+
+# create empty dataframe to place results from loop once it's done
+output.gage <- data.frame()
+
+# create an empty dataframe to store errors if they occur
+error_files <- c()
+
+for(i in 1:length(gage_file_list)) {
+  
+  tmp <- read.csv(gage_file_list[i])
+  names(tmp) <- tolower(names(tmp))
+  
+  # problem_gages <- c("11476500", "11475800") 
+  name <- path_file(gage_file_list[i])
+  gage_ID <- unlist(lapply(strsplit(name, "_"), function(x) paste(nth(x, -2), sep = "_")))
+  COMID_df <- lu_gage %>% filter(Gage.ID == gage_ID)
+    
+  gage_file <- tmp %>%
+      rename(flow = obs) %>% 
+      mutate(date = ymd(date)) %>% 
+      mutate(date = format(date, "%m/%d/%Y"))
+  
+  result <- tryCatch(
+    expr = {    
+      example_ffc <- ffcAPIClient::evaluate_alteration(
+      timeseries_df = gage_file, 
+      token = ffctoken,
+      comid = COMID_df$COMID)
+      },
+    error = function(e){
+      cat("An error occurred:", conditionMessage(e), "/n")
+      error_files <- append(error_files, gage_file_list[i])
+      result <- NA 
+    },
+    finally = {
+      cat("Execution completed./n")
+    }
+  )
+  
+  ex_ffm_results <- example_ffc$ffc_results
+  pivoted_results <- ex_ffm_results %>% pivot_longer(cols= DS_Dur_WS:Peak_Fre_5, names_to = "ffm", values_to = "gage.value") %>% 
+    mutate(gageID = gage_ID) %>% 
+    mutate(COMID = COMID_df$COMID)
+  
+  output.gage <- output.gage  %>% 
+    bind_rows(pivoted_results)
+}
+
+# save all gage results from ffc calculations into one csv
+export.gage <- output.gage %>% 
+  rename(FFM = ffm, Value = gage.value, gage_ID = gageID) %>% 
+  mutate(gage_ID = as.double(gage_ID))
+
+write.csv(export.gage, paste("FFC_outputs/EEL_spring_summer_calibration_rev2/csv_results/", Model_Watershed_eval, "_gage_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
+
+```
+
+#### LOOP 2 : loop through model columns for ffc calculations (loop takes approx 13 minutes to run for 122 columns)
+```{r}
+
+# isolate the columns with model results for analysis
+model.columns <- colnames(model_data)
+
+# create empty dataframe to place results from loop once it's done
+output.model <- data.frame()
+
+for(k in 2:length(model.columns)) {
+  
+  model_run <- model_data %>% 
+    select(Date, model.columns[k]) %>% 
+    rename(date = Date) %>% 
+    rename(flow = model.columns[k]) %>% 
+    mutate(date = ymd(date)) %>% 
+    mutate(date = format(date, "%m/%d/%Y"))
+  
+  subbasin <- as.numeric(model.columns[k])
+  soi <- lu_model %>% 
+    filter(Model_Subbasin == subbasin,
+           Model_Watershed == Model_Watershed_eval)
+  
+  result <- tryCatch(
+    expr = {    
+      ffc_model_run <- ffcAPIClient::evaluate_alteration(
+        timeseries_df = model_run, 
+        token = ffctoken,
+        comid = soi$COMID)
+    },
+    error = function(e){
+      cat("An error occurred:", conditionMessage(e), "/n")
+      result <- NA 
+    },
+    finally = {
+      cat("Execution completed./n")
+    }
+  )
+  
+  ffm_model_results <- ffc_model_run$ffc_results
+  pivoted_model_results <- ffm_model_results %>% pivot_longer(cols= DS_Dur_WS:Peak_Fre_5, names_to = "ffm", values_to = "model.value") %>% 
+    mutate(model_ID = soi$model_ID,
+           scenario = "unimpaired",
+           COMID = soi$COMID) 
+  
+  output.model <- output.model  %>% 
+    bind_rows(pivoted_model_results)
+
+}
+
+# save all model results from ffc calculations into one csv
+export.model <- output.model %>% 
+  rename(FFM = ffm, Value = model.value)
+write.csv(export.model, paste("FFC_outputs/EEL_spring_summer_calibration_rev2/csv_results/", Model_Watershed_eval, "_model_rev2_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
+
+```
+
+#### LOOP 3 : loop through boxplots to compare gaged and modeled data
+```{r}
+
+output.model.2 <- output.model %>%
+  rename(Value = model.value) %>% 
+  mutate(data_type = "predicted") %>% 
+  left_join(lu_gage,
+            by = "model_ID") %>%
+  mutate(gageID = as.numeric(Gage.ID)) #%>% 
+  #na.omit(gageID)
+
+output.gage.2 <- output.gage %>%
+  rename(Value = gage.value) %>% 
+  mutate(data_type = "observed",
+         gageID = as.numeric(gageID)) %>% 
+  left_join(lu_gage,
+            by = c("gageID"="Gage.ID")) #%>% 
+  #mutate(gageID = as.double(gageID))
+
+metrics <-  metric_categories_file %>% select(flow_metric, title_component) %>% 
+  rename(ffm = flow_metric)
+
+joined_df_col <- bind_rows(output.gage.2, output.model.2) %>% 
+  left_join(metrics, by = c("ffm"))
+
+#remove gage flow metric years that were not impaired
+  #for 2 gages, remove years that were not considered unimpaired (<2011)
+joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11476500 | joined_df_col$gageID == 11475800) & (joined_df_col$Year<1985 | joined_df_col$Year>2000)),]
+#for 1 MF dos rios ref gage, remove calibration years <=2011 to only look at ref validation period
+joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11473900) & (joined_df_col$Year<2010)),]
+#for 1 Lower Eel ref gage, remove calibration years <2010
+joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11478500) & (joined_df_col$Year<2010)),]
+
+COMID_list <- unique(export.gage$COMID)
+
+gage_list <- unique(joined_df_col$gageID) %>% na.omit()
+
+for(p in 1:length(gage_list)){
+
+  df.1 <-  joined_df_col %>%
+    filter(gageID %in% gage_list[p])
+  
+  COMID.p <- unique(df.1$COMID.x) 
+  
+  unique.component <- unique(metrics$title_component)
+  
+  # gageID.p <- unique(na.omit(as.numeric(df.1$gageID)))
+  gageID.p2 <- unique(na.omit(df.1$gageID))
+  #determine gage type (Reference is calibration, Validation)
+  gage.type.p <- lu_gage %>% filter(Gage.ID == gageID.p2) %$% Type2 %>% unique()
+  #Validation_Notes determines if validation gage is reference, impaired, or non-reference
+  gage.validation.notes.p <- lu_gage %>% filter(Gage.ID == gageID.p2) %$% Validation_Notes %>% unique()
+  gage.name.P <- lu_gage %>% filter(Gage.ID == gageID.p2) %$% Gage.Name %>% unique()
+  
+  modelID.p <- unique(na.omit(df.1$model_ID))
+  
+  for (y in 1:length(unique.component)){
+    
+    df.2 <- df.1 %>%
+      filter(title_component %in% unique.component[y])
+    
+    boxplot <- df.2 %>%
+      ggplot(aes(x = data_type, y = Value, fill = data_type))+
+      geom_boxplot()+
+      facet_wrap(~ffm, scales = "free")+
+      theme(axis.title.x = element_blank())+
+      labs(title = unique.component[y],
+      subtitle = paste0("Gage Name:", gage.name.P, ", Gage ID:", gageID.p2, ", Model ID:", modelID.p))
+
+    
+    if(gage.type.p == "Reference"){ #using updated Type2 column from Kris' table
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/boxplots/reference_calibration/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, boxplot)
+    }else if(gage.type.p == "Validation" & gage.validation.notes.p == "Impaired"){ 
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/boxplots/validation_impaired/", 
+                          Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, boxplot)
+      #else it's validation non-reference (minimally impaired) and reference
+    }else{  
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/boxplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 150, boxplot)
+    }
+    print(boxplot)
+  }
+}
+
+```
+
+#### LOOP 4 : loop through creating scatterplots and residual plots to compare gaged and modeled data
+```{r}
+#add model_ID to output.gage
+output.gage.3 <- output.gage %>% 
+  mutate(gageID = as.numeric(gageID)) %>% 
+  left_join(lu_gage %>% select(Gage.ID, model_ID), by=c("gageID"="Gage.ID"))
+
+joined_df_scatter <- inner_join(output.gage.3, output.model, by = c("model_ID", "ffm", "Year")) %>% 
+  left_join(metrics, by = "ffm")
+  # mutate(model_ID = str_replace(model_ID, "ER_82", "ER_83"))
+
+for(r in 1:length(gage_list)){
+  
+  new_df <- joined_df_scatter %>% 
+    mutate(residual = (model.value - gage.value))
+  
+  df.1 <-  new_df %>%
+    filter(gageID %in% gage_list[r])
+  
+  unique.component <- unique(metrics$title_component)
+  
+  gageID.r <- unique(na.omit(as.numeric(df.1$gageID)))
+  
+  gage.type.r <- lu_gage %>% filter(Gage.ID == gageID.r) %$% Type2
+  
+  validation.notes.r <- lu_gage %>% filter(Gage.ID == gageID.r) %$% Validation_Notes
+  
+  modelID.r <- unique(na.omit(df.1$model_ID))
+  
+  gage.name.r <- lu_gage %>% filter(Gage.ID == gageID.r) %$% Gage.Name
+
+  for (z in 1:length(unique.component)){
+    
+    df.2 <- df.1 %>%
+      filter(title_component %in% unique.component[z]) %>% 
+      na.omit(residual)
+    
+    scatter_plot <- df.2 %>%
+      ggplot(aes(x = gage.value, y = model.value))+
+      geom_point()+
+      facet_wrap(~ffm, scales = "free")+
+      geom_abline(intercept = 0, slope = 1)+
+      labs(title = paste0(unique.component[z]),
+           subtitle = paste0("Gage Name:", gage.name.r, ", Gage ID:", gageID.r, ", Model ID:", modelID.r))
+    
+    #saving scatter plots
+        if(gage.type.r == "Reference"){ #using updated Type2 column from Kris' table
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/scatterplots/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, scatter_plot)
+    }else if(gage.type.r == "Validation" & validation.notes.r == "Impaired"){ 
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/scatterplots/validation_impaired/", 
+                          Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, scatter_plot)
+      #else it's validation non-reference (minimally impaired) and reference
+    }else{  
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/scatterplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 150, scatter_plot)
+    }
+
+    print(scatter_plot)
+    print(paste(gageID.r, unique.component[z], "scatterplot"))
+    
+    residual_plot <- ggplot(df.2, aes(x = gage.value, y = residual))+
+      geom_point()+
+      facet_wrap(~ffm, scales = "free")+
+      geom_hline(yintercept = 0, linetype = 2)+
+      labs(title = paste0(unique.component[z]),
+      subtitle = paste0("Gage Name:", gage.name.r, ", Gage ID:", gageID.r, ", Model ID:", modelID.r))
+    
+        #saving residual plots
+        if(gage.type.r == "Reference"){ #using updated Type2 column from Kris' table
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/residuals/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, residual_plot)
+    }else if(gage.type.r == "Validation" & validation.notes.r == "Impaired"){ 
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/residuals/validation_impaired/", 
+                          Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 300, residual_plot)
+      #else it's validation non-reference (minimally impaired) and reference
+    }else{  
+      ggsave(file = paste("FFC_outputs/EEL_spring_summer_calibration_rev2/residuals/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
+             width = 180, height = 180, unit = "mm", dpi = 150, residual_plot)
+    }
+
+    print(residual_plot)
+    print(paste(gageID.r, unique.component[z], "residual"))
+  }
+  
+}
+```
+
