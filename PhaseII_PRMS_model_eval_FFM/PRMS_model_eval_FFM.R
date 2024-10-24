@@ -36,7 +36,7 @@
 #FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River/csv_results/"
 #FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River_recal_083024/csv_results/"
 #Eel final recalibration
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Eel_River_recal_083024/csv_results/"
+FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/EEL_spring_summer_calibration_rev2/csv_results/"
 
 
 #set working directory to FFM_dir
@@ -54,26 +54,13 @@ lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General
   #create col with model_ID
   mutate(model_ID = paste0("ER_", PRMS.Subbasin))
 
-#2 gages are reference from 1985-2000.  Need to subset FFM data for those two.  Lookup
-gage.ref <- c(11476500, 11475800)
-gage.ref.years <- c(1985, 2000)
-#also need to subset reference gage MF Dos Rios 11473900 to WY 2011-2021 (validation period)
-
-
 
 #list all files in FFM_dir
 list.files.all <- list.files(FFM_dir, full.names=TRUE)
-#find file index for only Eel River (ER) gage and model data (using date because extra files not deleted)
-ind.ER <- grep("2024-09-08", list.files.all)
-#subset to ER only
-list.files.ER <- list.files.all[ind.ER]
-# #can delete line below later, but only using KTQ files since original ER gage data need to be reformatted
-# ind.KTQ <- grep("_KTQ", list.files.ER)
-# list.file.ER2 <- list.files.ER
 
 #read in gaged data
-ind.gage.ER <- grep("_gage_", list.files.ER)
-gage.ffm.ER <- read.csv(list.files.ER[ind.gage.ER]) %>% 
+ind.gage.ER <- grep("_gage_", list.files.all)
+gage.ffm.ER <- read.csv(list.files.all[ind.gage.ER]) %>% 
   #remove rows where value is NA
   na.omit() %>% 
   #create new column of model_ID and FFM
@@ -95,8 +82,8 @@ gage.ffm.years <- gage.ffm.ER %>%
   mutate(gage_ID_FFM = paste0(gage_ID, " ", FFM))
 
 #read in model data
-ind.model.ER <- grep("_model_", list.files.ER)
-model.ffm.ER <- read.csv(list.files.ER[ind.model.ER]) %>% 
+ind.model.ER <- grep("_model_", list.files.all)
+model.ffm.ER <- read.csv(list.files.all[ind.model.ER]) %>% 
   #remove rows where value is NA
   na.omit() %>% 
   #create new column of model_ID and FFM
@@ -266,7 +253,7 @@ unique.gage.ffm <- unique(eval.criteria.all.filter$gage_ID_FFM)
 
 #create output df of all performance criteria per FFM 
 perf.criteria.FFM <- data.frame(matrix(NA, 1, 18))
-names(perf.criteria.FFM) <- c("gage_ID", "model_ID", "gage_type", "FFM", "composite_index", "composite_index_disp", "IQR_25_75", "I80R_10_90", "PBIAS", "NSE", "mean_O_E", "R2", "PBIAS_scaled", "IQR_25_75_scaled", "I80R_10_90_scaled", "NSE_scaled", "mean_O_E_scaled", "n_annual_gage_model")
+names(perf.criteria.FFM) <- c("gage_ID", "model_ID", "Type2", "FFM", "composite_index", "composite_index_disp", "IQR_25_75", "I80R_10_90", "PBIAS", "NSE", "mean_O_E", "R2", "PBIAS_scaled", "IQR_25_75_scaled", "I80R_10_90_scaled", "NSE_scaled", "mean_O_E_scaled", "n_annual_gage_model")
 
 
 for(j in 1:(length(unique.gage.ffm))){
@@ -373,12 +360,12 @@ write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
-  select(gage_ID, FFM, composite_index, gage_type) %>% 
+  select(gage_ID, FFM, composite_index, Type2) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index)
 
 #tidy performance table for heatmap - composite using dispersion only
 perf.criteria.FFM.table.disp <- perf.criteria.FFM %>% 
-  select(gage_ID, FFM, composite_index_disp, gage_type) %>% 
+  select(gage_ID, FFM, composite_index_disp, Type2) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index_disp)
 
 #round all columns except FFM by 2 digits
@@ -419,8 +406,8 @@ ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poo
 
 #add an asterix to any validation gage_ID
 #find index of validation gages
-ind.val <- grep("Validation", ffm_comp_ind_longer$gage_type)
-#make a copy of gage_type
+ind.val <- grep("Validation", ffm_comp_ind_longer$Type2)
+#make a copy of Type2
 ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
 #set validation gages with asterix
 ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
@@ -479,7 +466,7 @@ rating_labels <- paste0(rating, " (", rating_values, ")")
 rating_labels[6] <- NA
 
 ref.filter <- ffm_comp_ind_longer2 %>% 
-  filter(gage_type == "Reference") 
+  filter(Type2.x == "Reference") 
 
 heatmap <- ggplot(ref.filter, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
@@ -509,8 +496,8 @@ plot(heatmap)
 ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_all_refgages.jpg", width = 11, height = 5, dpi=300)
 
 
-###heat map for 2 validation gages in middle fork that have minimal impairment and reference validation gage in SFE Miranda
-val.filter <- ffm_comp_ind_longer2[ffm_comp_ind_longer2$gage_ID == 11472800 | ffm_comp_ind_longer2$gage_ID == 11472900 | ffm_comp_ind_longer2$gage_ID == 11473900 | ffm_comp_ind_longer2$gage_ID == 11476500,] 
+###heat map for 2 validation gages in middle fork that have minimal impairment and reference validation gage in SFE Miranda, MFE dos Rios, Lower Eel Van Duzen
+val.filter <- ffm_comp_ind_longer2[ffm_comp_ind_longer2$gage_ID == 11472800 | ffm_comp_ind_longer2$gage_ID == 11472900 | ffm_comp_ind_longer2$gage_ID == 11473900 | ffm_comp_ind_longer2$gage_ID == 11476500 | ffm_comp_ind_longer2$gage_ID == 11478500,] 
 
 #create color lookup table
 colors <- c("#ff7f00", "#ffff33", "#4daf4a", "#377eb8", "#984ea3", "grey")
@@ -586,8 +573,8 @@ ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poo
 
 #add an asterix to any validation gage_ID
 #find index of validation gages
-ind.val <- grep("Validation", ffm_comp_ind_longer$gage_type)
-#make a copy of gage_type
+ind.val <- grep("Validation", ffm_comp_ind_longer$Type2.x)
+#make a copy of Type2
 ffm_comp_ind_longer$gage_ID2 <- as.character(ffm_comp_ind_longer$gage_ID)
 #set validation gages with asterix
 ffm_comp_ind_longer$gage_ID2[ind.val] <- paste0(ffm_comp_ind_longer$gage_ID[ind.val], "*")
@@ -631,7 +618,7 @@ ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersio
 
 #only plot reference gages (calibration gages)
 ref.filter <- ffm_comp_ind_longer %>% 
-  filter(gage_type == "Reference") 
+  filter(Type2.x == "Reference") 
 
 
 heatmap_disp2<- ggplot(ref.filter, aes(y=title_name, x = gage_ID2)) +
@@ -664,7 +651,7 @@ ggsave(heatmap_disp2, file="../FFM_eval/Model_performance_FFM_composite_dispersi
 
 
 ###heat map for 2 validation gages in middle fork that have minimal impairment, 1 ref validation MF, and one reference validation in SFE Miranda
-val.filter <- ffm_comp_ind_longer[ffm_comp_ind_longer$gage_ID == 11472800 | ffm_comp_ind_longer$gage_ID == 11472900 | ffm_comp_ind_longer$gage_ID == 11473900 | ffm_comp_ind_longer$gage_ID == 11476500,]
+val.filter <- ffm_comp_ind_longer[ffm_comp_ind_longer$gage_ID == 11472800 | ffm_comp_ind_longer$gage_ID == 11472900 | ffm_comp_ind_longer$gage_ID == 11473900 | ffm_comp_ind_longer$gage_ID == 11476500 | ffm_comp_ind_longer2$gage_ID == 11478500,]
 
 heatmap_disp2<- ggplot(val.filter, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
