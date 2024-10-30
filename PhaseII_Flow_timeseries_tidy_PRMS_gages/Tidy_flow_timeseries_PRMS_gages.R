@@ -27,6 +27,8 @@ flow_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/W
 
 ##Eel river directory
 ER_dir <- paste0(flow_dir, "/Eel_river/")
+#updated Eel River directory with recalibration outputs
+ER_dir_v2 <- paste0(flow_dir, "/EEL_spring_summer_calibration_rev2/")
 
 ####
 ####Gaged flow
@@ -74,13 +76,13 @@ for(i in 1:length(gage.files)){
 }
 
 #write csv with just gaged flow data
-write.csv(gage.df, file=paste0(ER_dir, "EelRiver_Gaged_Flow_combined.csv"), row.names=FALSE)
+write.csv(gage.df, file=paste0(ER_dir_v2, "EelRiver_Gaged_Flow_combined.csv"), row.names=FALSE)
 
 ####
 ####Modeled flow
 
 #read in modeled flow csv (only one, each column 2:length is for different model subbasin)
-model.dat.orig <- read.csv(paste0(ER_dir, "MODEL/eel_subbasins.sub_cfs.csv"), check.names = FALSE)
+model.dat.orig <- read.csv(paste0(ER_dir_v2, "eel_subbasins.spring_summer_rev2_sub_cfs.csv"), check.names = FALSE)
 #column names for model.dat
 col.names.model.dat.orig <- names(model.dat.orig)
 
@@ -108,27 +110,27 @@ for(k in 2:length(col.names.model.dat.orig)){
 }
 
 #write csv modeled flow data reformatted
-write.csv(model.dat, file = paste0(ER_dir, "EelRiver_Modeled_Flow_combined.csv"), row.names=FALSE)
+write.csv(model.dat, file = paste0(ER_dir_v2, "EelRiver_Modeled_Flow_rev2_combined.csv"), row.names=FALSE)
 
-####
-####Combine model and gaged flow for watershed delineation tool (omit modeled flow where gaged data is available)
-
-#find model_IDs that are co-located at gages
-model.ID.remove <- unique(gage.df$model_ID)
-
-#remove flow data associated with gages
-model.dat.remove <- model.dat[!(model.dat$model_ID %in% model.ID.remove),] %>% 
-  #create empty column for gage_ID for these
-  mutate(gage_ID = "")
-#quick check to see if removed model.ID.remove
-unique(model.dat.remove$model_ID)
-
-#combine gage.df with model.dat.remove
-gage.model.dat.for.tool <- gage.df %>% 
-  bind_rows(model.dat.remove)
-
-#write csv
-write.csv(gage.model.dat.for.tool, file=paste0(ER_dir, "EelRiver_Gage_Model_Flow_combined_for_tool.csv"), row.names=FALSE)
+####  NOT USING THIS ANYMORE
+# ####Combine model and gaged flow for watershed delineation tool (omit modeled flow where gaged data is available)
+# 
+# #find model_IDs that are co-located at gages
+# model.ID.remove <- unique(gage.df$model_ID)
+# 
+# #remove modeled flow data associated with gages
+# model.dat.remove <- model.dat[!(model.dat$model_ID %in% model.ID.remove),] %>% 
+#   #create empty column for gage_ID for these
+#   mutate(gage_ID = "")
+# #quick check to see if removed model.ID.remove
+# unique(model.dat.remove$model_ID)
+# 
+# #combine gage.df with model.dat.remove
+# gage.model.dat.for.tool <- gage.df %>% 
+#   bind_rows(model.dat.remove)
+# 
+# #write csv
+# write.csv(gage.model.dat.for.tool, file=paste0(ER_dir, "EelRiver_Gage_Model_Flow_combined_for_tool.csv"), row.names=FALSE)
 
 ############################################################################################################################
 ## Tidying XXXX River modeled and gaged flow timeseries data
