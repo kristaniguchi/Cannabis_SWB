@@ -272,6 +272,15 @@ joined_df_scatter <- inner_join(output.gage.3, output.model, by = c("model_ID", 
   left_join(metrics, by = "ffm")
   # mutate(model_ID = str_replace(model_ID, "ER_82", "ER_83"))
 
+#remove gage flow metric years that were not impaired
+  #for 2 gages, remove years that were not considered unimpaired (<2011)
+joined_df_scatter <- joined_df_scatter[! ((joined_df_scatter$gageID == 11476500 | joined_df_scatter$gageID == 11475800) & (joined_df_scatter$Year<1985 | joined_df_scatter$Year>2000)),]
+#for 1 MF dos rios ref gage, remove calibration years <=2011 to only look at ref validation period
+joined_df_scatter <- joined_df_scatter[! ((joined_df_scatter$gageID == 11473900) & (joined_df_scatter$Year<2010)),]
+#for 1 Lower Eel ref gage, remove calibration years <2010
+joined_df_scatter <- joined_df_scatter[! ((joined_df_scatter$gageID == 11478500) & (joined_df_scatter$Year<2010)),]
+
+
 for(r in 1:length(gage_list)){
   
   new_df <- joined_df_scatter %>% 
