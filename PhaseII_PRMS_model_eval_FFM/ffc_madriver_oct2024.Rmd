@@ -216,6 +216,9 @@ metrics <-  metric_categories_file %>% select(flow_metric, title_component) %>%
 joined_df_col <- bind_rows(output.gage.2, output.model.2) %>% 
   left_join(metrics, by = c("ffm"))
 
+#for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
+joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11480390) & (joined_df_col$Year<2011)),]
+
 
 COMID_list <- unique(export.gage$COMID)
 
@@ -282,6 +285,10 @@ output.gage.3 <- output.gage %>%
 joined_df_scatter <- inner_join(output.gage.3, output.model, by = c("model_ID", "ffm", "Year")) %>% 
   left_join(metrics, by = "ffm")
   # mutate(model_ID = str_replace(model_ID, "ER_82", "ER_83"))
+
+#for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
+joined_df_scatter <- joined_df_scatter[! ((joined_df_scatter$gageID == 11480390) & (joined_df_scatter$Year<2011)),]
+
 
 for(r in 1:length(gage_list)){
   
