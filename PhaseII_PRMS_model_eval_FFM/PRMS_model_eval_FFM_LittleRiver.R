@@ -4,10 +4,11 @@
 #'  Model performance by FFM following methods by Grantham et al. (2022) and Moriasi et al. (2007)
 #'  
 #'  PRMS watershed model flow timeseries data for:
-#'    Mad River
+#'    Little River
 #'    
-#'    Notes for Mad River:
-#'      	Calibration (reference) gage is 11480390. Calibration period 1/1/1990 to 12/31/2010, validation 1/1/2011 to 6/30/2023
+#'    Notes for Little River:
+#'      	Calibration (reference) gage is 11481200 Calibration period WY 1986-2010, validation WY 2011-2022
+
 #'      Other gage is impaired and will not evaluate
 #'      
 #'      
@@ -16,12 +17,13 @@
 ############################################################################################################################
 
 #install package to combine two geom_tile figures together (since only one gage)
-install.packages("patchwork")
-library(patchwork)
+#install.packages("patchwork")
+
 
 
 {
   #load libraries and install if necessary
+  library(patchwork)
   library("ggplot2")
   library("dplyr")
   library("tidyverse")
@@ -36,8 +38,8 @@ library(patchwork)
 }
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
-#Mad River  recalibration
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Mad_River_rev2/csv_results/"
+#Little River  recalibration
+FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Little_River/csv_results/"
 
 
 #set working directory to FFM_dir
@@ -48,14 +50,14 @@ metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/D
 
 
 ############################################################################################################################
-## Tidying Eel River modeled and gaged functional flow metric values, only keep gage and associated model node FFM
+## Tidying Little River modeled and gaged functional flow metric values, only keep gage and associated model node FFM
 
 #read in lookup table that has gage_ID and model_ID
 lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>% 
-  #filter only to Mad
-  filter(HUC8.Subarea == "Mad-Redwood") %>% 
+  #filter only to Little
+  filter(HUC8.Subarea == "Little River") %>% 
   #create col with model_ID
-  mutate(model_ID = paste0("MR_", PRMS.Subbasin))
+  mutate(model_ID = paste0("LR_", PRMS.Subbasin))
 
 
 #list all files in FFM_dir
@@ -70,9 +72,8 @@ gage.ffm.ER <- read.csv(list.files.all[ind.gage.ER]) %>%
   mutate(gage_ID_FFM = paste0(gage_ID, " ", FFM))
 
 #only evalute performance at the reference gage, validation years
-gage.ffm.ER <- gage.ffm.ER[! (gage.ffm.ER$gage_ID == 11481000 ),]
 #for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
-gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11480390) & (gage.ffm.ER$Year<2011)),]
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11481200) & (gage.ffm.ER$Year<2011)),]
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
@@ -98,6 +99,11 @@ unique.model_ID <- lookup.ER$model_ID[lookup.ER$Gage.ID %in% unique.gages]
 
 #subset to only model_IDs that have gages
 model.ffm.ER.sub <- model.ffm.ER[as.character(model.ffm.ER$model_ID) %in% unique.model_ID,]
+
+#only evalute performance at the reference gage, validation years
+#for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$Year<2011)),]
+
 
 #count number of ffm values per model node, we will later filter list to sites with at least 10 years of FFM data
 model.ffm.years <- model.ffm.ER.sub %>% 
@@ -357,7 +363,7 @@ for(j in 1:(length(unique.gage.ffm))){
 }
 
 #write the overall performance table so anyone can view the results, save in 1 directory back
-write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all_Mad_rev2.csv")
+write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all_Little_rev2.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
@@ -428,6 +434,9 @@ rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
 rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
 rating_labels <- paste0(rating, " (", rating_values, ")")
 rating_labels[6] <- NA
+#subset colors to what we have
+lookup.cols <- data.frame(cbind(colors, rating, rating_values, rating_labels))
+lookup.cols <- lookup.cols[lookup.cols$rating %in% unique(ffm_comp_ind_longer2$rating),]
 
 heatmap <- ggplot(ffm_comp_ind_longer2, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
@@ -437,7 +446,7 @@ heatmap <- ggplot(ffm_comp_ind_longer2, aes(y=title_name, x = gage_ID2)) +
   geom_text(aes(label = Composite_Index), color = "black") + 
   #some formatting to make things easier to read
   scale_x_discrete(position = "top") +
-  scale_fill_manual(values = colors, labels = rating_labels) +
+  scale_fill_manual(values = lookup.cols$colors, labels = rating_labels) +
   #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
   theme(legend.position = "bottom", 
         legend.box = "horizontal",
@@ -506,6 +515,9 @@ rating <- c("poor", "satisfactory", "good", "very good", "excellent", NA)
 rating_values <- c("<0.5", "0.5-0.65", "0.65-0.8", "0.81-0.9", ">0.9", NA)
 rating_labels <- paste0(rating, " (", rating_values, ")")
 rating_labels[6] <- NA
+#subset colors to what we have
+lookup.cols <- data.frame(cbind(colors, rating, rating_values, rating_labels))
+lookup.cols <- lookup.cols[lookup.cols$rating %in% unique(ffm_comp_ind_longer$rating),]
 
 heatmap_disp<- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
   #make heatmap with geom_tile based on criteria values
@@ -515,7 +527,7 @@ heatmap_disp<- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = gage_ID2)) +
   geom_text(aes(label = Composite_Index_Disp), color = "black") + 
   #some formatting to make things easier to read
   scale_x_discrete(position = "top") +
-  scale_fill_manual(values = colors, labels = rating_labels) +
+  scale_fill_manual(values = lookup.cols$colors, labels = lookup.cols$rating_labels) +
   #scale_fill_gradient(high = “#132B43”, low = “#56B1F7”) +
   theme(legend.position = "bottom", 
         legend.box = "horizontal",
@@ -537,10 +549,12 @@ ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersio
 #combine two geom_tile figures together 
 
 #remove legend on one plot
-heatmap_disp2 <- heatmap_disp + theme(legend.position = "none", axis.text.y = element_blank(), axis.title.y = element_blank())
+heatmap_v2 <- heatmap + theme(legend.position = "none")
+
+heatmap_disp2 <- heatmap_disp + theme(legend.position = "right", axis.text.y = element_blank(), axis.title.y = element_blank())
 
 #combine plots
-combined_plot <- heatmap + heatmap_disp2
+combined_plot <- heatmap_v2 + heatmap_disp2
 
 plot(combined_plot)
 
