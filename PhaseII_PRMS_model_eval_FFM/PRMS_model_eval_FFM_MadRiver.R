@@ -16,7 +16,7 @@
 ############################################################################################################################
 
 #install package to combine two geom_tile figures together (since only one gage)
-install.packages("patchwork")
+#install.packages("patchwork")
 library(patchwork)
 
 
@@ -98,6 +98,10 @@ unique.model_ID <- lookup.ER$model_ID[lookup.ER$Gage.ID %in% unique.gages]
 
 #subset to only model_IDs that have gages
 model.ffm.ER.sub <- model.ffm.ER[as.character(model.ffm.ER$model_ID) %in% unique.model_ID,]
+
+#for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$Year<2011)),]
+
 
 #count number of ffm values per model node, we will later filter list to sites with at least 10 years of FFM data
 model.ffm.years <- model.ffm.ER.sub %>% 
