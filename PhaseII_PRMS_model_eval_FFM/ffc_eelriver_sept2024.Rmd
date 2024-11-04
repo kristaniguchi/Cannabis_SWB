@@ -11,6 +11,7 @@ editor_options:
 #### load necessary libraries
 # for first time users, use the following line to install ffc tool package:
 # devtools::install_github('ceff-tech/ffc_api_client/ffcAPIClient')
+{
 library(devtools)
 library(usethis)
 library(tidyverse)
@@ -20,6 +21,8 @@ library(ffcAPIClient)
 library(lubridate)
 library(magrittr)
 library(ggplot2)
+
+}
 
 #### set-up token for use
 # token is unique to each user  
@@ -40,15 +43,15 @@ lu_model <- read_xlsx("Eel_River/Lookup_Tables/LOOKUP_table_all_v2_edits.xlsx", 
          Model_Watershed == "ER") 
 #read in gage lookup
 lu_gage <- read.csv("Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>% 
+  filter(Model_abbrev == "ER") %>% 
   left_join(lu_model, by=c("PRMS.Subbasin"="Model_Subbasin"))
+  
 #modeled PRMS outputs
 model_data <- read.csv("EEL_spring_summer_calibration_rev2/eel_subbasins.spring_summer_rev2_sub_cfs.csv", check.names = F)
 #gage data in Eel River
 gage_data <- ("Eel_River/GAGES")
 #functional flow metric names
 metric_categories_file <- read.csv("Eel_River/Lookup_Tables/all_metric_def_list_FFMs_v2 1.csv")
-
-#main_lookup <- left_join(lu_gage, lu_model %>% select(model_ID, COMID), by = "COMID")
 
 #### user specify the Model_Watershed abbreviation (Eel River is ER, Redwood Creek is RWC, Little River is LR, Red Wood Creek is RWC, Mad River is MR) based on the model_data csv name
 Model_Watershed_eval <- "ER"
@@ -169,6 +172,7 @@ for(k in 2:length(model.columns)) {
 # save all model results from ffc calculations into one csv
 export.model <- output.model %>% 
   rename(FFM = ffm, Value = model.value)
+
 write.csv(export.model, paste("FFC_outputs/EEL_spring_summer_calibration_rev2/csv_results/", Model_Watershed_eval, "_model_rev2_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
 
 ```

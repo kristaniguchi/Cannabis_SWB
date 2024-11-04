@@ -51,9 +51,9 @@ metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/D
 
 #read in lookup table that has gage_ID and model_ID
 lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>% 
+  filter(Model_abbrev == "ER") %>% 
   #create col with model_ID
   mutate(model_ID = paste0("ER_", PRMS.Subbasin))
-
 
 #list all files in FFM_dir
 list.files.all <- list.files(FFM_dir, full.names=TRUE)
@@ -89,7 +89,6 @@ model.ffm.ER <- read.csv(list.files.all[ind.model.ER]) %>%
   #create new column of model_ID and FFM
   mutate(model_ID_FFM = paste0(model_ID, " ", FFM)) 
 
-
 #find unique gageIDs
 unique.gages <- unique(gage.ffm.ER$gage_ID)
 #find associated model_IDs for the unique.gages (these are model_IDs we want to keep in FFM data)
@@ -97,6 +96,20 @@ unique.model_ID <- lookup.ER$model_ID[lookup.ER$Gage.ID %in% unique.gages]
 
 #subset to only model_IDs that have gages
 model.ffm.ER.sub <- model.ffm.ER[as.character(model.ffm.ER$model_ID) %in% unique.model_ID,]
+
+##for 2 gages, remove years that were not considered unimpaired (<2011)
+#find model ID associated with gages of interest needed to subset years
+modelid.1 <- lookup.ER$model_ID[lookup.ER$Gage.ID == 11476500]
+modelid.1b <- lookup.ER$model_ID[lookup.ER$Gage.ID == 11475800]
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$model_ID == modelid.1 | model.ffm.ER.sub$model_ID == modelid.1b) & (model.ffm.ER.sub$Year<1985 | model.ffm.ER.sub$Year>2000)),]
+#for 1 MF dos rios ref gage, remove calibration years <=2010 to only look at ref validation period
+#find model ID associated with gages of interest needed to subset years
+modelid.2 <- lookup.ER$model_ID[lookup.ER$Gage.ID == 11473900]
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$model_ID == modelid.2) & (model.ffm.ER.sub$Year<2010)),]
+#for 1 Lower Eel ref gage, remove calibration years <2010
+modelid.3 <- lookup.ER$model_ID[lookup.ER$Gage.ID == 11478500]
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$model_ID == modelid.3) & (model.ffm.ER.sub$Year<2010)),]
+
 
 #count number of ffm values per model node, we will later filter list to sites with at least 10 years of FFM data
 model.ffm.years <- model.ffm.ER.sub %>% 
