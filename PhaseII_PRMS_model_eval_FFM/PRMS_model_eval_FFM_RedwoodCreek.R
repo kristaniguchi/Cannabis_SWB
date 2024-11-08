@@ -39,7 +39,7 @@
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 #Little River  recalibration
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Little_River/csv_results/"
+FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Redwood_Creek_rev2/csv_results/"
 
 
 #set working directory to FFM_dir
@@ -73,7 +73,7 @@ gage.ffm.ER <- read.csv(list.files.all[ind.gage.ER]) %>%
 
 #only evalute performance at the reference gage, validation years
 #for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
-gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11481200) & (gage.ffm.ER$Year<2011)),]
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11481500) & (gage.ffm.ER$Year<2011)),]
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
@@ -103,6 +103,8 @@ model.ffm.ER.sub <- model.ffm.ER[as.character(model.ffm.ER$model_ID) %in% unique
 #only evalute performance at the reference gage, validation years
 #for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
 model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$Year<2011)),]
+#exclude impaired gage at RWC_2
+model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$model_ID == "RWC_2")),]
 
 
 #count number of ffm values per model node, we will later filter list to sites with at least 10 years of FFM data
