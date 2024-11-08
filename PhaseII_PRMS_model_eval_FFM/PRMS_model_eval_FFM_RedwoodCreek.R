@@ -74,6 +74,9 @@ gage.ffm.ER <- read.csv(list.files.all[ind.gage.ER]) %>%
 #only evalute performance at the reference gage, validation years
 #for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
 gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11481500) & (gage.ffm.ER$Year<2011)),]
+#exclude non-reference gage
+gage.ffm.ER <- gage.ffm.ER[! ((gage.ffm.ER$gage_ID == 11482500)),]
+
 
 #count number of ffm values per gage, we will later filter list to sites with at least 10 years of FFM data
 gage.ffm.years <- gage.ffm.ER %>% 
@@ -103,8 +106,6 @@ model.ffm.ER.sub <- model.ffm.ER[as.character(model.ffm.ER$model_ID) %in% unique
 #only evalute performance at the reference gage, validation years
 #for 1 reference gage, remove calibration years <=2010 to only look at ref validation period
 model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$Year<2011)),]
-#exclude impaired gage at RWC_2
-model.ffm.ER.sub <- model.ffm.ER.sub[! ((model.ffm.ER.sub$model_ID == "RWC_2")),]
 
 
 #count number of ffm values per model node, we will later filter list to sites with at least 10 years of FFM data
@@ -365,7 +366,7 @@ for(j in 1:(length(unique.gage.ffm))){
 }
 
 #write the overall performance table so anyone can view the results, save in 1 directory back
-write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all_Little_rev2.csv")
+write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_all_Redwood_rev2.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
