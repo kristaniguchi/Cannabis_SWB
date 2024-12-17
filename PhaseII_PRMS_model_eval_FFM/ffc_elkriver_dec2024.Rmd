@@ -45,14 +45,14 @@ lu_gage <- read.csv("Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>%
   left_join(lu_model, by=c("PRMS.Subbasin"="Model_Subbasin"))
 
 #gage data in Eel River
-gage_data <- ("Elk_River/GAGES/")
+gage_data <- ("Elk_River_recalibration/GAGES/")
 #functional flow metric names
 metric_categories_file <- read.csv("Eel_River/Lookup_Tables/all_metric_def_list_FFMs_v2 1.csv")
 
 ############
 #modeled PRMS outputs, optimized final calibration dataset
 #Elk river has may to sept data and oct to april data
-model_data <- read.csv("Elk_River/elk_subbasins_tlaps_rates.sub_cfs.csv", check.names = F) 
+model_data <- read.csv("Elk_River_recalibration/elk_subbasins_tlaps_rates.sub_cfs.csv", check.names = F) 
 
 
 #####################
@@ -63,8 +63,9 @@ Model_Watershed_eval <- "ELR"
 
 #### LOOP 1 : loop through gage files for ffc calculations 
 ```{r}
-# list the gage timeseries files you want to loop through
-gage_file_list <- list.files(gage_data, full.names = T)
+# list the gage timeseries files you want to loop through, only take csv files (not xlsx)
+gage_file_list <- list.files(gage_data, full.names = T, pattern = "\\.csv$")
+
 
 # create empty dataframe to place results from loop once it's done
 output.gage <- data.frame()
@@ -82,7 +83,7 @@ for(i in 1:length(gage_file_list)) {
   COMID_df <- lu_gage %>% filter(Gage.ID == gage_ID)
     
   gage_file <- tmp %>%
-      rename(flow = observed) %>% 
+      rename(flow = obs) %>% 
       mutate(date = as.POSIXct(date, format = "%m/%d/%Y"))%>% 
       mutate(date = format(date, "%m/%d/%Y"))
   
@@ -118,21 +119,21 @@ export.gage <- output.gage %>%
   mutate(gage_ID = as.double(gage_ID))
 
 #create output folders for ffc_outputs
-dir.create("FFC_outputs/Elk_River/boxplots/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/csv_results/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/FFM_eval/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/residuals/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/scatterplots/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/boxplots/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/csv_results/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/FFM_eval/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/residuals/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/scatterplots/", recursive=TRUE)
 #create subfolders for plots
-dir.create("FFC_outputs/Elk_River/boxplots/reference_calibration/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/residuals/reference_calibration/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/scatterplots/reference_calibration/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/boxplots/validation_impaired/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/residuals/validation_impaired/", recursive=TRUE)
-dir.create("FFC_outputs/Elk_River/scatterplots/validation_impaired/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/boxplots/reference_calibration/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/residuals/reference_calibration/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/scatterplots/reference_calibration/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/boxplots/validation_impaired/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/residuals/validation_impaired/", recursive=TRUE)
+dir.create("FFC_outputs/Elk_River_rev2/scatterplots/validation_impaired/", recursive=TRUE)
 
 
-write.csv(export.gage, paste("FFC_outputs/Elk_River/csv_results/", Model_Watershed_eval, "_gage_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
+write.csv(export.gage, paste("FFC_outputs/Elk_River_rev2/csv_results/", Model_Watershed_eval, "_gage_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
 
 ```
 
@@ -190,7 +191,7 @@ for(k in 2:length(model.columns)) {
 export.model <- output.model %>% 
   rename(FFM = ffm, Value = model.value)
 
-write.csv(export.model, paste("FFC_outputs/Elk_River/csv_results/", Model_Watershed_eval, "_model_rev2_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
+write.csv(export.model, paste("FFC_outputs/Elk_River_rev2/csv_results/", Model_Watershed_eval, "_model_rev2_", "ffc_results_", today(),".csv", sep = ""), row.names = F)
 
 ```
 
@@ -220,7 +221,7 @@ joined_df_col <- bind_rows(output.gage.2, output.model.2) %>%
   left_join(metrics, by = c("ffm"))
 
 #for ref gage, remove calibration years <2011 to only look at ref validation period
-joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11481200) & (joined_df_col$Year<2011)),]
+joined_df_col <- joined_df_col[! ((joined_df_col$gageID == 11479700) & (joined_df_col$Year<2011)),]
 
 
 COMID_list <- unique(export.gage$COMID)
@@ -261,15 +262,15 @@ for(p in 1:length(gage_list)){
 
     
     if(gage.type.p == "Reference"){ #using updated Type2 column from Kris' table
-      ggsave(file = paste("FFC_outputs/Elk_River/boxplots/reference_calibration/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/boxplots/reference_calibration/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, boxplot)
     }else if(gage.type.p == "Validation" & gage.validation.notes.p == "Impaired"){ 
-      ggsave(file = paste("FFC_outputs/Elk_River/boxplots/validation_impaired/", 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/boxplots/validation_impaired/", 
                           Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, boxplot)
       #else it's validation non-reference (minimally impaired) and reference
     }else{  
-      ggsave(file = paste("FFC_outputs/Elk_River/boxplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/boxplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.p2,"_",unique(df.2$title_component),"_boxplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 150, boxplot)
     }
     print(boxplot)
@@ -329,15 +330,15 @@ for(r in 1:length(gage_list)){
     
     #saving scatter plots
         if(gage.type.r == "Reference"){ #using updated Type2 column from Kris' table
-      ggsave(file = paste("FFC_outputs/Elk_River/scatterplots/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/scatterplots/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, scatter_plot)
     }else if(gage.type.r == "Validation" & validation.notes.r == "Impaired"){ 
-      ggsave(file = paste("FFC_outputs/Elk_River/scatterplots/validation_impaired/", 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/scatterplots/validation_impaired/", 
                           Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, scatter_plot)
       #else it's validation non-reference (minimally impaired) and reference
     }else{  
-      ggsave(file = paste("FFC_outputs/Elk_River/scatterplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/scatterplots/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_scatterplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 150, scatter_plot)
     }
 
@@ -353,15 +354,15 @@ for(r in 1:length(gage_list)){
     
         #saving residual plots
         if(gage.type.r == "Reference"){ #using updated Type2 column from Kris' table
-      ggsave(file = paste("FFC_outputs/Elk_River/residuals/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/residuals/reference_calibration/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, residual_plot)
     }else if(gage.type.r == "Validation" & validation.notes.r == "Impaired"){ 
-      ggsave(file = paste("FFC_outputs/Elk_River/residuals/validation_impaired/", 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/residuals/validation_impaired/", 
                           Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 300, residual_plot)
       #else it's validation non-reference (minimally impaired) and reference
     }else{  
-      ggsave(file = paste("FFC_outputs/Elk_River/residuals/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
+      ggsave(file = paste("FFC_outputs/Elk_River_rev2/residuals/validation_non-impaired/", Model_Watershed_eval,"_", gageID.r,"_",unique(df.2$title_component),"_residualplot.jpg",sep = ""), 
              width = 180, height = 180, unit = "mm", dpi = 150, residual_plot)
     }
 

@@ -38,7 +38,7 @@
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 #Elk River  recalibration
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Elk_River/csv_results/"
+FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Elk_River_rev2/csv_results/"
 
 #set working directory to FFM_dir
 setwd(FFM_dir)
@@ -55,7 +55,7 @@ lookup.ER <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General
   #filter only to Elk
   filter(Model_abbrev == "ELR") %>% 
   #create col with model_ID
-  mutate(model_ID = paste0("ELR", PRMS.Subbasin))
+  mutate(model_ID = paste0("ELR_", PRMS.Subbasin))
 
 
 #list all files in FFM_dir
