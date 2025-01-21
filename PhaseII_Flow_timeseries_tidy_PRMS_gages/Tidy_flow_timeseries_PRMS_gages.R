@@ -17,7 +17,7 @@
 library(tidyverse)
 library(dplyr)
 
-
+ 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 flow_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/"
 
