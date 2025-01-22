@@ -27,12 +27,12 @@ flow_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/W
 
 ##Eel river directory
 ER_dir <- paste0(flow_dir, "/Eel_river/")
-#updated Eel River directory with recalibration outputs
+#updated Eel River directory with recalibration outputs final
 ER_dir_v2 <- paste0(flow_dir, "/EEL_spring_summer_calibration_rev2/")
 
 ####
 ####Gaged flow
-#ER gaged files to read in
+#ER gaged files to read in, in original directory
 gage.files <- list.files(paste0(ER_dir,"/GAGES/"), full.names = TRUE)
 #list gage file names to extract gage_ID from in loop
 gage.fnames <- list.files(paste0(ER_dir,"/GAGES/"))
@@ -41,6 +41,8 @@ fname.split <- str_split(gage.fnames, pattern="_")
 
 #lookup table with gage_ID and model_ID
 lookup <- read.csv(file=paste0(ER_dir, "/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv")) %>% 
+  #filter only to Eel
+  filter(Model_abbrev == "ER") %>% 
   #create new column with model_ID
   mutate(model_ID = paste0("ER_", PRMS.Subbasin))
 
@@ -318,3 +320,188 @@ for(k in 2:length(col.names.model.dat.orig)){
 #write csv modeled flow data reformatted
 write.csv(model.dat, file = paste0(LR_dir_v2, "LittleRiver_Modeled_Flow_rev2_combined.csv"), row.names=FALSE)
 
+############################################################################################################################
+## Tidying Redwood Creek modeled and gaged flow timeseries data
+
+##Redwood Creek directory
+#updated Redwood Creek directory with recalibration outputs
+RWC_dir_v2 <- paste0(flow_dir, "/Redwood_Creek_rev2/")
+
+####
+####Gaged flow
+#ER gaged files to read in
+gage.files <- list.files(paste0(RWC_dir_v2,"/GAGES/"), full.names = TRUE)
+#list gage file names to extract gage_ID from in loop
+gage.fnames <- list.files(paste0(RWC_dir_v2,"/GAGES/"))
+#extract gageID
+fname.split <- str_split(gage.fnames, pattern="_")
+
+##Eel river directory
+ER_dir <- paste0(flow_dir, "/Eel_river/")
+
+#lookup table with gage_ID and model_ID
+lookup <- read.csv(file=paste0(ER_dir, "/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv")) %>% 
+  filter(Model_abbrev == "RWC") %>% 
+  #create new column with model_ID
+  mutate(model_ID = paste0("RWC_", PRMS.Subbasin))
+
+#empty output df for gaged timeseries to be appended to
+gage.df <- data.frame()
+
+#loop through gaged data files, read csvs, extract 
+
+for(i in 1:length(gage.files)){
+  #read in csv i
+  gage.i.dat <- read.csv(gage.files[i])
+  #col names for gage.i.dat
+  col.names.dat.i <- names(gage.i.dat)
+  
+  #find gage_ID, second to last element of split
+  gage_ID.i <- fname.split[[i]] [length(fname.split[[i]])-1]
+  
+  #find associated model_ID where gage is located
+  lookup.row <- lookup[lookup$Gage.ID == gage_ID.i,]
+  model_ID.i <- lookup.row$model_ID
+  
+  #create output df for i
+  output.i <- gage.i.dat %>% 
+    mutate(model_ID = model_ID.i,
+           gage_ID = gage_ID.i) %>% 
+    #rename first column date
+    rename(date = col.names.dat.i[1],
+           #rename second column obs
+           flow_cfs = col.names.dat.i[2])
+  #append into output df
+  gage.df <- gage.df %>% 
+    bind_rows(output.i)
+}
+
+#write csv with just gaged flow data
+write.csv(gage.df, file=paste0(RWC_dir_v2, "RedwoodCreek_Gaged_Flow_combined.csv"), row.names=FALSE)
+
+####
+####Modeled flow
+
+#read in modeled flow csv (only one, each column 2:length is for different model subbasin)
+model.dat.orig <- read.csv(paste0(RWC_dir_v2, "Redwood_Creek_rev2_calib_combined_all_cfs.csv"), check.names = FALSE)
+#column names for model.dat
+col.names.model.dat.orig <- names(model.dat.orig)
+
+
+#emtpy output df for modeled flow data
+model.dat <- data.frame()
+
+#loop through columns 2:length to extract and tidy flow timeseries
+
+for(k in 2:length(col.names.model.dat.orig)){
+  #subset dat for k subbasin
+  model.dat.orig.k <- model.dat.orig %>% 
+    #select date col 1 and k column flow for subbasin k
+    select(col.names.model.dat.orig[1], col.names.model.dat.orig[k]) %>% 
+    #rename col names
+    rename(date = col.names.model.dat.orig[1],
+           flow_cfs = col.names.model.dat.orig[k]) %>% 
+    #create model_ID column by pasting RWC_ with original col header k (subbasin number)
+    mutate(model_ID = paste0("RWC_", col.names.model.dat.orig[k]))
+  
+  #append data into model.dat
+  model.dat <- model.dat %>% 
+    bind_rows(model.dat.orig.k)
+  
+}
+
+#write csv modeled flow data reformatted
+write.csv(model.dat, file = paste0(RWC_dir_v2, "RedwoodCreek_Modeled_Flow_rev2_combined.csv"), row.names=FALSE)
+
+############################################################################################################################
+## Tidying Elk River modeled and gaged flow timeseries data
+
+##Elk River directory
+#updated Elk River directory with recalibration outputs
+ELR_dir_v2 <- paste0(flow_dir, "/Elk_River_recalibration/")
+
+####
+####Gaged flow
+#ER gaged files to read in. Note this this is just the output of the regression to predict unimpaired flows at this gage
+gage.files <- list.files(paste0(ELR_dir_v2,"/GAGES/"), full.names = TRUE) [1]
+#list gage file names to extract gage_ID from in loop
+gage.fnames <- list.files(paste0(ELR_dir_v2,"/GAGES/")) [1]
+#extract gageID
+fname.split <- str_split(gage.fnames, pattern="_")
+
+##Eel river directory
+ER_dir <- paste0(flow_dir, "/Eel_river/")
+
+#lookup table with gage_ID and model_ID
+lookup <- read.csv(file=paste0(ER_dir, "/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv")) %>% 
+  filter(Model_abbrev == "ELR") %>% 
+  #create new column with model_ID
+  mutate(model_ID = paste0("ELR_", PRMS.Subbasin))
+
+#empty output df for gaged timeseries to be appended to
+gage.df <- data.frame()
+
+#loop through gaged data files, read csvs, extract 
+
+for(i in 1:length(gage.files)){
+  #read in csv i
+  gage.i.dat <- read.csv(gage.files[i])
+  #col names for gage.i.dat
+  col.names.dat.i <- names(gage.i.dat)
+  
+  #find gage_ID, second to last element of split
+  gage_ID.i <- fname.split[[i]] [length(fname.split[[i]])-1]
+  
+  #find associated model_ID where gage is located
+  lookup.row <- lookup[lookup$Gage.ID == gage_ID.i,]
+  model_ID.i <- lookup.row$model_ID
+  
+  #create output df for i
+  output.i <- gage.i.dat %>% 
+    mutate(model_ID = model_ID.i,
+           gage_ID = gage_ID.i) %>% 
+    #rename first column date
+    rename(date = col.names.dat.i[1],
+           #rename second column obs
+           flow_cfs = col.names.dat.i[2])
+  #append into output df
+  gage.df <- gage.df %>% 
+    bind_rows(output.i)
+}
+
+#write csv with just gaged flow data
+write.csv(gage.df, file=paste0(ELR_dir_v2, "ElkRiver_Gaged_Flow_regression_combined.csv"), row.names=FALSE)
+
+####
+####Modeled flow
+
+#read in modeled flow csv (only one, each column 2:length is for different model subbasin)
+model.dat.orig <- read.csv(paste0(ELR_dir_v2, "elk_subbasins_tlaps_rates.sub_cfs.csv"), check.names = FALSE)
+#column names for model.dat
+col.names.model.dat.orig <- names(model.dat.orig)
+
+
+#emtpy output df for modeled flow data
+model.dat <- data.frame()
+
+#loop through columns 2:length to extract and tidy flow timeseries
+
+for(k in 2:length(col.names.model.dat.orig)){
+  #subset dat for k subbasin
+  model.dat.orig.k <- model.dat.orig %>% 
+    #select date col 1 and k column flow for subbasin k
+    select(col.names.model.dat.orig[1], col.names.model.dat.orig[k]) %>% 
+    #rename col names
+    rename(date = col.names.model.dat.orig[1],
+           flow_cfs = col.names.model.dat.orig[k]) %>% 
+    #create model_ID column by pasting ELR_ with original col header k (subbasin number)
+    mutate(model_ID = paste0("ELR_", col.names.model.dat.orig[k]))
+  
+  #append data into model.dat
+  model.dat <- model.dat %>% 
+    bind_rows(model.dat.orig.k)
+  
+}
+
+#write csv modeled flow data reformatted
+write.csv(model.dat, file = paste0(ELR_dir_v2, "ElkRiver_Modeled_Flow_rev2_combined.csv"), row.names=FALSE)
