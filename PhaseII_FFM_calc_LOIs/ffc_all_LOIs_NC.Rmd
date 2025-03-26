@@ -1,0 +1,181 @@
+---
+title: "ffc_LOIs_032025"
+author: "Adriana Le Compte, revised by Kris Taniguchi-Quan"
+date: "2025-03-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#### SET-UP : Load libaries, set token, and import data sources
+```{r load packages}
+#### load necessary libraries
+# for first time users, use the following line to install ffc tool package:
+# devtools::install_github('ceff-tech/ffc_api_client/ffcAPIClient')
+{
+library(devtools)
+library(usethis)
+library(tidyverse)
+library(readxl)
+library(fs)
+library(ffcAPIClient)
+library(lubridate)
+library(magrittr)
+library(ggplot2)
+library(sf)
+
+}
+
+#### set-up token for use
+# token is unique to each user  
+ffctoken <- 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmaXJzdE5hbWUiOiJBZHJpYW5hIiwibGFzdE5hbWUiOiJMZSBDb21wdGUiLCJlbWFpbCI6ImFkcmlhbmFsc0BzY2N3cnAub3JnIiwicm9sZSI6IlVTRVIiLCJpYXQiOjE2OTMyNTA2Njl9.mjM3WqZJXJdaJHEqN5e5Fh90JFgERzERqxiksSCpGbE'
+
+#ffctoken <- ffcAPIClient::set_token(Sys.getenv("EFLOWS_TOKEN", ""))
+ffc <- ffcAPIClient::FFCProcessor$new()
+
+# set wd
+setwd("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/FFMs_LOI_NC_benchmark_sites/")
+```
+
+```{r import data}
+#read in lookup table for biosites for COMIDs
+lu_biosites <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/BioSites/Bio_Stream_Type_Land_Use_summary.csv") %>% 
+  mutate(unique_ID = masterid, Dataset = "BioSite", COMID = as.numeric(COMID)) %>% 
+  select(unique_ID, Dataset, COMID)
+
+#### read in lookup table for all LOI datasets to get COMIDs
+lu_LOIs_all <- read_excel("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Expected vs Modeled Area/Expected vs Modeled_Summary_3.xlsx", sheet=1) %>% 
+  #exclude PRMS model node delineations
+  filter(Dataset != "PRMS model node delineation" & Dataset != "BioStream2" & Dataset != "BioStream020425") %>% 
+  mutate(unique_ID = Point, COMID = as.numeric(COMID)) %>% 
+  select(unique_ID, Dataset, COMID) %>% 
+  bind_rows(lu_biosites) %>% 
+  #remove duplicate rows
+  distinct()
+
+#some COMIDs were 0, need to replace with closest COMID match
+#### read in lookup table for all LOI datasets to get COMIDs
+lu_LOIs_0s <- read_excel("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Expected vs Modeled Area/Expected vs Modeled_Summary_3.xlsx", sheet=1) %>% 
+  #exclude PRMS model node delineations
+  filter(COMID == 0) %>% 
+  mutate(unique_ID = Point, COMID = as.numeric(COMID)) %>% 
+  select(unique_ID, Dataset, More) %>% 
+  rename(COMID = More) %>% 
+  mutate(COMID = as.numeric(COMID))
+
+#remove rows with COMID 0 and attach new COMIDs to use
+lu_LOIs_all <- lu_LOIs_all %>% 
+  filter(COMID != 0) %>% 
+  bind_rows(lu_LOIs_0s)
+
+#find unique dataset names to attach to unimpaired flow timeseries
+unique.datasets <- unique(lu_LOIs_all$Dataset)
+
+
+####### predicted unimpaired flows for various LOI datasets
+#NC geomorphic transect sites
+LOI_transect <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/LOI_delineations/NC_sites_FINAL_v2_unimpaired_flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "NC_Final", date = as.character(date))
+
+#NC geomorphic high-resolution sites
+LOI_hires <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/LOI_delineations/NC_sites_highresolution_unimpaired_flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "NC_highresolution", date = as.character(date)) 
+
+#NC Benchmark sites
+#McBain sites
+LOI_mcbain <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/NC_benchmark_sites/Delineation/McBain_Sites_Unimpaired_Flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "McBain site", date = as.character(date))
+
+#SFE highresolution sites
+LOI_SFEhires <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/NC_benchmark_sites/Delineation/SFE_sites_highresolution_Unimpaired_Flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "SFE high resolution", date = as.character(date))
+
+#SFE mainstem sites
+LOI_SFEmainstem <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/NC_benchmark_sites/Delineation/SFE_sites_mainstem_Unimpaired_Flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "SFE mainstem", date = as.character(date))
+
+#NC bio sites
+LOI_biosites <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/BioSites/N_Coast_BioSites_Unimpaired_Flow.csv") %>% 
+  #create column with Dataset name
+  mutate(Dataset = "BioSite", date = as.character(date))
+
+#combine all unimpaired flow for every LOI dataset
+LOI_flow_all <- bind_rows(LOI_transect, LOI_hires, LOI_mcbain, LOI_SFEhires, LOI_SFEmainstem, LOI_biosites) %>% 
+  #remove blank X column
+  select(-X) %>% 
+  left_join(lu_LOIs_all, by=c("unique_ID", "Dataset"))
+
+
+
+```
+
+#### LOOP 1 : loop through LOI datasets for ffc calculations (loop takes approx 2 minutes to run for 15 files)
+```{r}
+# list the gage timeseries files you want to loop through
+unique.sites <- unique(LOI_flow_all$unique_ID)
+
+# create empty dataframe to place results from loop once it's done
+output.LOIs <- data.frame()
+
+# create an empty dataframe to store errors if they occur
+error_files <- c()
+
+for(i in 1:length(unique.sites)) {
+  
+  #subset LOI_flow_all to unique.sites[i]
+  tmp <- LOI_flow_all %>% 
+    filter(unique_ID == unique.sites[i])
+  
+  COMID_df <- unique(tmp$COMID)
+  Dataset_df <- unique(tmp$Dataset)
+    
+  flow_file <- tmp %>%
+      rename(flow = flow_cfs) %>% 
+      mutate(date = ymd(date)) %>% 
+      mutate(date = format(date, "%m/%d/%Y")) %>% 
+    #only keep date and flow columns
+    select(date, flow)
+  
+  result <- tryCatch(
+    expr = {    
+      example_ffc <- ffcAPIClient::evaluate_alteration(
+      timeseries_df = flow_file, 
+      token = ffctoken,
+      comid = COMID_df)
+      },
+    error = function(e){
+      cat("An error occurred:", conditionMessage(e), "\n")
+      error_files <<- c(error_files, unique.sites[i]) # Use <<- to modify global list
+      return(NA)  # Properly return NA for result
+    },
+    finally = {
+      cat("Execution completed./n")
+    }
+  )
+  
+  # If there was an error for site i, skip the next lines and go to the next iteration
+  if (unique.sites[i] %in% error_files) {
+    next
+  }
+  
+  # These lines will be skipped if an error occurred
+  ex_ffm_results <- example_ffc$ffc_results
+  pivoted_results <- ex_ffm_results %>% pivot_longer(cols= DS_Dur_WS:Peak_Fre_5, names_to = "FFM", values_to = "Value") %>% 
+    mutate(unique_ID = unique.sites[i],
+           COMID = COMID_df,
+           Dataset = Dataset_df) 
+  
+  output.LOIs <- output.LOIs  %>% 
+    bind_rows(pivoted_results)
+}
+
+# save all LOI results from ffc calculations into one csv
+
+write.csv(output.LOIs, paste("ffc_results_all_NC_LOIs_unimpaired_", today(),".csv", sep = ""), row.names = F)
+
+```
+
