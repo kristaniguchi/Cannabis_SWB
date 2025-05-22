@@ -114,6 +114,8 @@ for(k in 2:length(col.names.model.dat.orig)){
 #write csv modeled flow data reformatted
 write.csv(model.dat, file = paste0(ER_dir_v2, "EelRiver_Modeled_Flow_rev2_combined.csv"), row.names=FALSE)
 
+
+test <- read.csv(file=paste0(ER_dir_v2, "EelRiver_Modeled_Flow_rev2_combined.csv"))
 ####  NOT USING THIS ANYMORE
 # ####Combine model and gaged flow for watershed delineation tool (omit modeled flow where gaged data is available)
 # 
