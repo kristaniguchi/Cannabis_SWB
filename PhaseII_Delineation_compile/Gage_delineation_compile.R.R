@@ -88,10 +88,25 @@ combined_sf <- shp_files %>%
 #write combined shapefile
 st_write(combined_sf, paste0(delin_dir, "Gage_delineations/All_gages_delineations_combined.shp"))
 
+######################################
+###loop to read in all modeled unimpaired flow at gages
 
-# #compile all gage flow data associated with this data
-# write.csv(gage.df, file=paste0(ER_dir_v2, "EelRiver_Gaged_Flow_combined.csv"), row.names=FALSE)
-# write.csv(gage.df, file=paste0(MR_dir_v2, "MadRiver_Gaged_Flow_combined.csv"), row.names=FALSE)
-# write.csv(gage.df, file=paste0(LR_dir_v2, "LittleRiver_Gaged_Flow_combined.csv"), row.names=FALSE)
-# write.csv(gage.df, file=paste0(RWC_dir_v2, "RedwoodCreek_Gaged_Flow_combined.csv"), row.names=FALSE)
+#read in all PRMS unimpaired flow model predictions at model nodes
+eel <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/EEL_spring_summer_calibration_rev2/EelRiver_Modeled_Flow_rev2_combined.csv")
+elk <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Elk_River_recalibration/ElkRiver_Modeled_Flow_rev2_combined.csv")
+LR <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Little_River/LittleRiver_Modeled_Flow_rev2_combined.csv")
+Mad <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Mad_River_rev2/MadRiver_Modeled_Flow_rev2_combined.csv")
+RWC <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Redwood_Creek_rev2/RedwoodCreek_Modeled_Flow_rev2_combined.csv")
 
+#combine into one df
+flow.all <- eel %>% 
+  bind_rows(elk, LR, Mad, RWC)
+
+#write csv of combined flow dataset
+write.csv(flow.all, file= "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/PRMS_unimpaired_flow_all_model_nodes.csv")
+
+#filter to only gaged nodes
+flow.gages.prms <- flow.all[flow.all$model_ID %in% lookup.gages$model_ID,]
+
+#write csv
+write.csv(flow.gages.prms, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Gage_delineations/All_gages_unimpaired_flow.csv")
