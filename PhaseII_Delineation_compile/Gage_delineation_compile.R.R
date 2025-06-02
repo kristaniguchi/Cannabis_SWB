@@ -25,6 +25,7 @@
   library("ztable")
   library("glue")
   library("scales")
+  library("readxl")
 }
 
 #data directories (location where delineations are stored)
@@ -37,10 +38,21 @@ setwd(delin_dir)
 ############################################################################################################################
 ## Tidying Eel River modeled and gaged functional flow metric values, only keep gage and associated model node FFM
 
+#get comids at gages
+lookup.gages.model <- read_excel("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/LOOKUP_table_all_v2_edits.xlsx", sheet="LU_model") %>%
+  #select comid and model ID only
+  select(COMID, model_ID)
+
+
 #read in lookup table that has gage_ID and model_ID
 lookup.gages <- read.csv(file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup.csv") %>% 
   #create col with model_ID. This will be used to subset delineation polygons
-  mutate(model_ID = paste0(Model_abbrev, "_", PRMS.Subbasin))
+  mutate(model_ID = paste0(Model_abbrev, "_", PRMS.Subbasin)) %>% 
+  #left join COMIDs
+  left_join(lookup.gages.model, by="model_ID")
+
+#write data
+write.csv(lookup.gages, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv")
 
 #list all files in entire watersheds for model nodes
 list.files.all <- list.files(paste0(delin_dir, "Model_Nodes_Watersheds/watersheds_entiredrainage_for_tool/"), full.names=TRUE)
