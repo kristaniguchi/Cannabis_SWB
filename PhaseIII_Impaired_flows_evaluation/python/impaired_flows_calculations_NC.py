@@ -257,7 +257,7 @@ def per_dataset(dataset):
     daily_impaired_flows = pd.merge(
         flow_filtered, total_daily_demand, on=["siteID", "DATE"], how="left"
     )
-    # Fill NaN with 0
+    # Fill NaN with 0. These are for sites/watersheds that contain no points of diversion
     daily_impaired_flows = daily_impaired_flows.fillna(0)
 
     columns = ["DATE", "siteID", "flow_cfs_unimpaired", "DAILY_DEMAND_AF"]
@@ -325,7 +325,7 @@ def per_dataset(dataset):
     monthly_impaired_flow = pd.merge(
         monthly_flow, total_monthly_demand, on=["siteID", "DATE"], how="left"
     )
-    # Fill NaN with 0
+    # Fill NaN with 0. These are for sites/watersheds that contain no points of diversion
     monthly_impaired_flow = monthly_impaired_flow.fillna(0)
 
     monthly_impaired_flow["flow_af_unimpaired"] = (
