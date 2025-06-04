@@ -1,0 +1,18 @@
+
+# Data files
+processed_inputs
+inputs
+outputs
+outputs.zip
+
+# Testing notebooks
+*_test.ipynb
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore Python bytecode files
+__pycache__/
+
+# MacOS specific files
+.DS_Store
