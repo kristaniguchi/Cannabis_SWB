@@ -1,4 +1,25 @@
+<<<<<<< HEAD
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+=======
+
+# Data files
+processed_inputs
+inputs
+outputs
+outputs.zip
+
+# Testing notebooks
+*_test.ipynb
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore Python bytecode files
+__pycache__/
+
+# MacOS specific files
+.DS_Store
+>>>>>>> ff5634b7de27964b6a3e34bb734617004e3c1cbd

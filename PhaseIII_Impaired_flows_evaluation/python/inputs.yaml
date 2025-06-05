@@ -1,0 +1,22 @@
+demand_data:
+  demand_consumption: inputs/annual_demand_consumptive_only.csv
+  demand_coordinates: inputs/annual_demand_coordinates_POD_IDs.csv
+datasets:
+- output_directory: outputs/nc_sites_final
+  basins_filepath: inputs/LOI_delineations/LOI_delineations/NC_sites_FINAL_watersheds_v2.shp
+  flow_filepath: processed_inputs/NC_sites_FINAL_v2_unimpaired_flow.csv
+- output_directory: outputs/biosites
+  basins_filepath: inputs/LOI_delineations/LOI_delineations/Biosites_NCoast_delineations_QA.shp
+  flow_filepath: processed_inputs/N_Coast_BioSites_Unimpaired_Flow.csv
+- output_directory: outputs/gages
+  basins_filepath: inputs/LOI_delineations/LOI_delineations/All_gages_delineations_combined.shp
+  flow_filepath: processed_inputs/All_gages_unimpaired_flow.csv
+- output_directory: outputs/mcbainsites
+  basins_filepath: processed_inputs/delineations/McBain_sites_snapped_NAD83_watersheds.shp
+  flow_filepath: processed_inputs/McBain_Sites_Unimpaired_Flow.csv
+- output_directory: outputs/SFEhighresolution
+  basins_filepath: inputs/LOI_delineations/LOI_delineations/SFE_sites_highresolution_watersheds.shp
+  flow_filepath: processed_inputs/SFE_sites_highresolution_Unimpaired_Flow.csv
+- output_directory: outputs/SFEmainstem
+  basins_filepath: processed_inputs/delineations/SFE_sites_mainstem_watersheds.shp
+  flow_filepath: processed_inputs/SFE_sites_mainstem_Unimpaired_Flow.csv
