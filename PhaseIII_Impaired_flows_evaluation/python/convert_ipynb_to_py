@@ -1,0 +1,4 @@
+
+# Commands to convert notebooks to Python scripts
+python -m jupyter nbconvert --to python impaired_flows_process_inputs.ipynb
+python -m jupyter nbconvert --to python impaired_flows_summarize.ipynb
