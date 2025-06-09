@@ -3,7 +3,7 @@ demand_data:
   demand_coordinates: inputs/annual_demand_coordinates_POD_IDs.csv
 datasets:
 - output_directory: outputs/nc_sites_final
-  basins_filepath: inputs/LOI_delineations/LOI_delineations/NC_sites_FINAL_watersheds_v2.shp
+  basins_filepath: processed_inputs/delineations/NC_sites_FINAL_watersheds_v2.shp
   flow_filepath: processed_inputs/NC_sites_FINAL_v2_unimpaired_flow.csv
 - output_directory: outputs/biosites
   basins_filepath: inputs/LOI_delineations/LOI_delineations/Biosites_NCoast_delineations_QA.shp
