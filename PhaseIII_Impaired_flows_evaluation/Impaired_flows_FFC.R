@@ -151,7 +151,7 @@ for(i in 1:length(sites)){
   params <- list(
     calculator = "recommended",                # Optional: Choose "reference", "flashy" or "recommended"
     #class = "LSR",                           # Flow class (or use a valid class key)
-    comid = comid.i,                         # Optional COMID if it is available
+    comid = lu_sitei$COMID,                         # Optional COMID if it is available
     file = csv_file                          # The timeseries CSV file
   )
   
@@ -199,4 +199,5 @@ for(i in 1:length(sites)){
 #write csv
 write.csv(outputs_ffc, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_newFFC/Impaired_FFM_NC_LOIs_ALL.csv")
 
+unique.sites.out <- unique(outputs_ffc$siteID)
 
