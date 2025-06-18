@@ -198,6 +198,7 @@ for(i in 1:length(sites)){
 
 #write csv
 write.csv(outputs_ffc, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_newFFC/Impaired_FFM_NC_LOIs_ALL.csv")
-
+write.csv(warnings_ffc, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_newFFC/Impaired_FFM_NC_LOIs_ALL_warnings.csv")
 unique.sites.out <- unique(outputs_ffc$siteID)
+
 
