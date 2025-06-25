@@ -57,7 +57,8 @@ gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/W
 list.files.all <- list.files(FFM_dir, full.names=TRUE)
 
 #read in gaged data
-
+#find gage data
+ind.gage <- grep("gages", list.files.all)
 #FFM columns
 gage.ffm1 <- read.csv(list.files.all[ind.gage])
 
