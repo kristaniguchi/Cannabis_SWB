@@ -16,6 +16,7 @@
 
 #install package to combine two geom_tile figures together (since only one gage)
 #install.packages("patchwork")
+install.packages("fmsb")
 
 {
   #load libraries and install if necessary
@@ -31,6 +32,7 @@
   library("ztable")
   library("glue")
   library("scales")
+  library("fmsb")
 }
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
@@ -45,10 +47,10 @@ metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/D
 
 
 ############################################################################################################################
-## Tidying impaired flow (SWB) and gaged functional flow metric values, only keep gage and associated model node FFM
+## Tidying actual flows (Upstream Tech) and gaged functional flow metric values, only keep gage and associated model node FFM
 
 #read in lookup table that has Gage.ID and model_ID
-#gage LU, linking gageID to PRMS model_ID,
+#gage LU, linking gageID to COMID and other info,
 gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv") %>% 
   mutate(dataset = "gages")
 
@@ -77,7 +79,7 @@ gage.ffm <- gage.ffm1 %>%
   #remove rows with NA values
   na.omit()
 
-#only evaluate performance at gages that match POR of impaired flows
+#only evaluate performance at gages that match POR of actual flows. all have <=4 years of data
 gage.ffm <- gage.ffm[! (gage.ffm$Gage.ID %in% c(11472800, 11472900, 11472200, 11472150, 11479700)),]
 
 
@@ -93,13 +95,15 @@ gage.ffm.years <- gage.ffm %>%
 ind.model <- grep("Impaired_FFM_", list.files.all)
 model.ffm <- read.csv(list.files.all[ind.model]) %>% 
   #filter to predictions at gages data only
-  filter(dataset == "gages") %>% 
+  filter(dataset == "gage") %>% 
   #join gage ID
-  left_join(gage_lu %>% select(model_ID, Gage.ID), by = c("siteID" = "model_ID")) %>% 
+  left_join(gage_lu %>% select(model_ID, Gage.ID), by = c("siteID"="Gage.ID")) %>% 
   #pivot longer by FFM columns
   pivot_longer(cols = cols.ffm, 
                names_to = "FFM",
                values_to = "Value") %>% 
+  #rename column
+  rename(Gage.ID=siteID) %>% 
   #create new column of model_ID and FFM
   mutate(gage_ID_FFM = paste0(Gage.ID, " ", FFM)) %>% 
   #remove rows with NA values
@@ -161,7 +165,7 @@ eval.criteria.all <- data.frame(matrix(NA, 1, 7))
 names(eval.criteria.all) <- c("Gage.ID", 'COMID', 'FFM', 'I80R_10_90', 'IQR_25_75', "n_values", "n_values_pred")
 
 #unique FFMs to go through
-unique.gageid.ffm <- unique(gage.ffm$gage_ID_FFM)
+unique.gageid.ffm <- unique(model.ffm.sub$gage_ID_FFM)
 
 #to test loop, run i=1 outside of loop and run everything inside
 i=2
@@ -367,7 +371,7 @@ for(j in 1:(length(unique.gage.ffm))){
 
 #write the overall performance table so anyone can view the results, save in 1 directory back
 #dir.create("../FFM_eval/")
-write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_SWB_impaired_flow.csv")
+write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
@@ -468,7 +472,7 @@ heatmap <- ggplot(ffm_comp_ind_longer2, aes(y=title_name, x = Gage.ID2)) +
 plot(heatmap)
 
 #write heatmap as jpg
-ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_SWB_impaired_flows.jpg", width = 11, height = 5, dpi=300)
+ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_Upstream_Actual_flows.jpg", width = 11, height = 5, dpi=300)
 
 
 ############
@@ -483,7 +487,12 @@ if(length(ind.peak.tim > 0)){
   ffm.col.names <- ffm.col.names[-ind.peak.tim]
 }
 
+
+
+
 ffm_comp_ind_longer <- perf.criteria.FFM.table.disp %>% 
+  #set all metric value columns to numeric
+  mutate(across(3:23, as.numeric)) %>% 
   pivot_longer(cols = ffm.col.names,
                values_to = "Composite_Index_Disp",
                names_to = "FFM") %>% 
@@ -552,7 +561,7 @@ heatmap_disp<- ggplot(ffm_comp_ind_longer, aes(y=title_name, x = Gage.ID2)) +
 plot(heatmap_disp)
 
 #write heatmap as jpg
-ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion_SWB_impaired_flows.jpg", width = 11, height = 5, dpi=300)
+ggsave(heatmap_disp, file="../FFM_eval/Model_performance_FFM_composite_dispersion_Upstream_Actual_flows.jpg", width = 11, height = 5, dpi=300)
 
 #combine two geom_tile figures together 
 
@@ -567,7 +576,7 @@ combined_plot <- heatmap_v2 + heatmap_disp2
 plot(combined_plot)
 
 #write heatmap as jpg
-ggsave(combined_plot, file="../FFM_eval/Model_performance_FFM_composite_all_dispersion_combine.jpg", width = 7.5, height = 5, dpi=300)
+ggsave(combined_plot, file="../FFM_eval/Model_performance_FFM_composite_all_dispersion_combine_Upstream_Actual_flows.jpg", width = 7.5, height = 5, dpi=300)
 
 
 ##########################################################################
@@ -615,7 +624,7 @@ for(k in 1:length(unique.ffm)){
       geom_point() +
       labs(
         title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
-        subtitle = "All Validation Gages",
+        subtitle = "Upstream Actual",
         x = paste0("Observed ", metric.names.k$title_component2, metric.names.k$title_ffm),
         y = paste0("Predicted ", metric.names.k$title_component2, metric.names.k$title_ffm)) +
       #add 1:1 line
@@ -626,7 +635,7 @@ for(k in 1:length(unique.ffm)){
     scatter.all
     
     #save plot
-    ggsave(paste0("../FFM_eval/scatter_SWBimpaired_gages_all_", unique.ffm[k], ".jpg"),        # file name
+    ggsave(paste0("../FFM_eval/scatter_UpstreamActual_gages_all_", unique.ffm[k], ".jpg"),        # file name
            plot = scatter.all,       # plot object (optional if it's the last plot)
            width = 6, height = 4, dpi = 300, units = "in")
     
@@ -635,7 +644,7 @@ for(k in 1:length(unique.ffm)){
       geom_point() +
       labs(
         title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
-        subtitle = "All Validation Gages",
+        subtitle = "Upstream Actual",
         x = paste0("Observed ", metric.names.k$title_component2, metric.names.k$title_ffm),
         y = paste0("Predicted ", metric.names.k$title_component2, metric.names.k$title_ffm)) +
       labs(color = "Gage ID")  + # sets the legend title for color 
@@ -648,7 +657,7 @@ for(k in 1:length(unique.ffm)){
     
     scatter.gage
     #save plot
-    ggsave(paste0("../FFM_eval/scatter_SWBimpaired_gages_facet_", unique.ffm[k], ".jpg"),        # file name
+    ggsave(paste0("../FFM_eval/scatter_UpstreamActual_gages_facet_", unique.ffm[k], ".jpg"),        # file name
            plot = scatter.gage,       # plot object (optional if it's the last plot)
            width = 10, height = 7, dpi = 300, units = "in")
     
@@ -667,14 +676,14 @@ for(k in 1:length(unique.ffm)){
       geom_violin(trim = TRUE, color = "black") +
       geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
       labs(title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
-           subtitle = "All Validation Gages",
+           subtitle = "Upstream Actual",
            x = "Data Type",
            y = paste0(metric.names.k$title_component2, metric.names.k$title_ffm)) +
       theme_minimal()
     
     violin.all
     #save plot
-    ggsave(paste0("../FFM_eval/violin_SWBimpaired_gages_all_", unique.ffm[k], ".jpg"),        # file name
+    ggsave(paste0("../FFM_eval/violin_UpstreamActual_gages_all_", unique.ffm[k], ".jpg"),        # file name
            plot = violin.all,       # plot object (optional if it's the last plot)
            width = 6, height = 4, dpi = 300, units = "in")
     
@@ -687,14 +696,14 @@ for(k in 1:length(unique.ffm)){
       #facet_grid(~HUC8.Subarea, scales = "free_y", space = "free_y") +
       facet_wrap(~ Gage.Name, ncol = 3, scales = "free_y") +
       labs(title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
-           subtitle = "All Validation Gages",
+           subtitle = "Upstream Actual",
            x = "Data Type",
            y = paste0(metric.names.k$title_component2, metric.names.k$title_ffm)) +
       theme_minimal()
     
     violin.facet
     #save plot
-    ggsave(paste0("../FFM_eval/violin_SWBimpaired_gages_facet_", unique.ffm[k], ".jpg"),        # file name
+    ggsave(paste0("../FFM_eval/violin_UpstreamActual_gages_facet_", unique.ffm[k], ".jpg"),        # file name
            plot = violin.facet,       # plot object (optional if it's the last plot)
            width = 10, height = 7, dpi = 300, units = "in")
     
@@ -702,4 +711,90 @@ for(k in 1:length(unique.ffm)){
   }
 }
 
+
+##################################################
+#make comparison performance plots for Upstream Actual vs. SWB Impaired
+
+#read in performance summary from SWB impaired
+perf.criteria.FFM.SWB <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_eval/Model_performance_FFM_summary_SWB_impaired_flow.csv")
+
+#SWB tidy performance table for heatmap - composite using all criteria
+perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>% 
+  select(Gage.ID, FFM, composite_index, Type2) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index) %>% 
+  mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #only keep rows with same matching gageIDs
+  semi_join(perf.criteria.FFM.table, by="Gage.ID")
+
+#SWB tidy performance table for heatmap - composite using dispersion only
+perf.criteria.FFM.table.disp.SWB <- perf.criteria.FFM.SWB %>% 
+  select(Gage.ID, FFM, composite_index_disp, Type2) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index_disp) %>% 
+  mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #only keep rows with same matching gageIDs
+  semi_join(perf.criteria.FFM.table.disp, by="Gage.ID")
+
+#summarize and use the mean score for every metric
+perf.criteria.FFM.table.SWB.mean <- perf.criteria.FFM.table.SWB[,3:14] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+perf.criteria.FFM.table.disp.SWB.mean <- perf.criteria.FFM.table.disp.SWB[,3:14] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+
+#summarize and use mean score for every metric for Upstream
+perf.criteria.FFM.table.upstream.mean <- perf.criteria.FFM.table[,3:16] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+perf.criteria.FFM.table.disp.upstream.mean <- perf.criteria.FFM.table.disp[,3:16] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+#only keep common column metrics
+common_cols <- intersect(names(perf.criteria.FFM.table.upstream.mean), names(perf.criteria.FFM.table.SWB.mean))
+#overall perf
+mean.perf.Upstream.common <- perf.criteria.FFM.table.upstream.mean[, common_cols, drop = FALSE]
+mean.perf.SWB.common <- perf.criteria.FFM.table.SWB.mean[, common_cols, drop = FALSE]
+#join together
+mean.perf.overall <- data.frame(bind_rows(mean.perf.Upstream.common, mean.perf.SWB.common))
+rownames(mean.perf.overall) <- c("Upstream", "SWB")
+
+#dispersion perf
+mean.perf.Upstream.common <- perf.criteria.FFM.table.disp.upstream.mean[, common_cols, drop = FALSE]
+mean.perf.SWB.common <- perf.criteria.FFM.table.disp.SWB.mean[, common_cols, drop = FALSE]
+#join together
+mean.perf.disp <- data.frame(bind_rows(mean.perf.Upstream.common, mean.perf.SWB.common))
+rownames(mean.perf.disp) <- c("Upstream", "SWB")
+
+# fmsb needs first two rows to be the max and min
+data_for_plot.overall <- rbind(
+  Max = rep(1, ncol(mean.perf.overall)),  # set max for axes
+  Min = rep(0, ncol(mean.perf.overall)),  # set min for axes
+  mean.perf.overall
+)
+
+# Create the radar plot for dispersion
+radarchart(data_for_plot.overall,
+           axistype = 1,
+           pcol = c("blue", "red"),
+           pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+           plwd = 2,
+           cglcol = "grey", cglty = 1,
+           axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
+           vlcex = 0.8)
+
+legend("bottom", inset = c(0, -.5), legend = c("Upstream", "SWB"),
+       pch=20, col=c("blue","red"), xpd = TRUE)
+
+# Create the radar plot for overall
+radarchart(data_for_plot.overall,
+           axistype = 1,
+           pcol = c("blue", "red"),
+           pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+           plwd = 2,
+           cglcol = "grey", cglty = 1,
+           axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
+           vlcex = 0.8)
+
+legend("bottom", inset = c(0, -.5), legend = c("Upstream", "SWB"),
+       pch=20, col=c("blue","red"), xpd = TRUE)
 
