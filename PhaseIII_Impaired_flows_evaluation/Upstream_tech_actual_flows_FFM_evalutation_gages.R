@@ -16,7 +16,7 @@
 
 #install package to combine two geom_tile figures together (since only one gage)
 #install.packages("patchwork")
-install.packages("fmsb")
+#install.packages("fmsb")
 
 {
   #load libraries and install if necessary
@@ -772,8 +772,40 @@ data_for_plot.overall <- rbind(
   mean.perf.overall
 )
 
-# Create the radar plot for dispersion
-radarchart(data_for_plot.overall,
+
+# Open PNG file to save as image
+svg("spider_plot_FFM_perf_SWB_Upstream.svg", width = 8, height = 8)
+
+# Create the radar plot for overall performance
+spider.plot <- radarchart(data_for_plot.overall,
+           axistype = 1,
+           pcol = c("blue", "red"),
+           pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+           plwd = 2,
+           cglcol = "grey", cglty = 1,
+           axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
+           vlcex = 0.8) 
+
+legend("bottom", inset = c(0, -0.15), legend = c("Upstream", "SWB"),
+       pch=20, col=c("blue","red"), xpd = TRUE)
+
+# Close the device
+dev.off()
+
+###radar plot for dispersion performance only
+# fmsb needs first two rows to be the max and min
+data_for_plot.disp <- rbind(
+  Max = rep(1, ncol(mean.perf.overall)),  # set max for axes
+  Min = rep(0, ncol(mean.perf.overall)),  # set min for axes
+  mean.perf.disp
+)
+
+# Open PNG file to save as image
+svg("spider_plot_FFM_perf_SWB_Upstream_dispersion.svg", width = 8, height = 8)
+
+
+# Create the radar plot for dispersion performance only 
+radarchart(data_for_plot.disp,
            axistype = 1,
            pcol = c("blue", "red"),
            pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
@@ -782,19 +814,106 @@ radarchart(data_for_plot.overall,
            axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
            vlcex = 0.8)
 
-legend("bottom", inset = c(0, -.5), legend = c("Upstream", "SWB"),
+legend("bottom", inset = c(0, -0.1), legend = c("Upstream", "SWB"),
        pch=20, col=c("blue","red"), xpd = TRUE)
 
-# Create the radar plot for overall
-radarchart(data_for_plot.overall,
-           axistype = 1,
-           pcol = c("blue", "red"),
-           pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
-           plwd = 2,
-           cglcol = "grey", cglty = 1,
-           axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
-           vlcex = 0.8)
+# Close the device
+dev.off()
 
-legend("bottom", inset = c(0, -.5), legend = c("Upstream", "SWB"),
-       pch=20, col=c("blue","red"), xpd = TRUE)
+#reset margin
+par(mar = c(5, 4, 4, 2))  # default bottom, left, top, right margins
 
+###################Bar plots summarizing number of metrics that fell into each category per gage
+
+#For overall performance rating: upstream and SWB
+#upstream tidy performance table 
+perf.criteria.FFM.table.upstream <- perf.criteria.FFM %>% 
+  select(Gage.ID, FFM, composite_index, Type2) %>% 
+  mutate(
+    rating = case_when(
+      composite_index < 0.5 ~ "poor",
+      composite_index >= 0.5 & composite_index < 0.65 ~ "satisfactory",
+      composite_index >= 0.65 & composite_index < 0.81 ~ "good",
+      composite_index >= 0.81 & composite_index < 0.9 ~ "very good",
+      composite_index >= 0.9 ~ "excellent",
+      TRUE ~ NA_character_
+    ),
+    # Convert to ordered factor
+    rating = factor(rating, levels = c("poor", "satisfactory", "good", "very good", "excellent")),
+    model = "Upstream Tech"
+  ) %>% 
+  #pivot_wider(names_from = FFM, values_from = composite_index) %>% 
+  mutate(Gage.ID = as.character(Gage.ID)) 
+
+
+#SWB tidy performance table for heatmap - composite using all criteria
+perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>% 
+  select(Gage.ID, FFM, composite_index, Type2) %>% 
+  mutate(
+    rating = case_when(
+      composite_index < 0.5 ~ "poor",
+      composite_index >= 0.5 & composite_index < 0.65 ~ "satisfactory",
+      composite_index >= 0.65 & composite_index < 0.81 ~ "good",
+      composite_index >= 0.81 & composite_index < 0.9 ~ "very good",
+      composite_index >= 0.9 ~ "excellent",
+      TRUE ~ NA_character_
+    ),
+    # Convert to ordered factor
+    rating = factor(rating, levels = c("poor", "satisfactory", "good", "very good", "excellent")),
+    model = "SWB"
+  ) %>% 
+  #pivot_wider(names_from = FFM, values_from = composite_index) %>% 
+  mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #only keep rows with same matching gageIDs
+  semi_join(perf.criteria.FFM.table.upstream, by="Gage.ID")
+
+#combine dfs
+perf.criteria.FFM.table.combined <- perf.criteria.FFM.table.upstream %>% 
+  mutate(composite_index = as.numeric(composite_index)) %>% 
+  bind_rows(perf.criteria.FFM.table.SWB) %>% 
+  #only keep rows with matching FFMs from SWB
+  semi_join(perf.criteria.FFM.table.SWB, by="FFM") %>% 
+  left_join(metric.names %>% select(flow_metric, title_component), by = c("FFM" = "flow_metric"))
+
+#count metrics by gage, model and rating
+summary_counts <- perf.criteria.FFM.table.combined %>%
+  count(Gage.ID, model, rating)
+
+#plot side by side grouped by model 
+ggplot(summary_counts, aes(x = Gage.ID, y = n, fill = rating)) +
+  geom_bar(stat = "identity", position = "stack") +    # stack by rating
+  facet_wrap(~ model) +                                # split by model
+  labs(
+    title = "Performance Category Counts by Gage and Model",
+    x = "Gage",
+    y = "Count of Metrics",
+    fill = "Rating"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  )
+
+####make by bar plot by FF component (season), count number of metrics in each rating (facet by Component)
+
+###Overall performance
+
+#count metrics by gage, model and rating
+summary_counts_component <- perf.criteria.FFM.table.combined %>%
+  count(Gage.ID, model, title_component, rating) %>% 
+  na.omit()
+
+#plot side by side grouped by model 
+ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rating)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(rows = vars(title_component), cols = vars(model)) +
+  labs(
+    title = "Count of Metrics by Rating and Model",
+    x = "Rating",
+    y = "Count of Metrics",
+    fill = "Model"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
