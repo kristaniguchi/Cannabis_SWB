@@ -904,7 +904,7 @@ summary_counts_component <- perf.criteria.FFM.table.combined %>%
   na.omit()
 
 #plot side by side grouped by model 
-ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rating)) +
+barplot.2 <- ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rating)) +
   geom_bar(stat = "identity", position = "dodge") +
   facet_grid(rows = vars(title_component), cols = vars(model)) +
   labs(
@@ -917,3 +917,8 @@ ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rating)) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
+
+#save plot
+ggsave(paste0("../FFM_eval/model_comparison_barplot_counts_perf_category_overall.jpg"),        # file name
+       plot = barplot.2,       # plot object (optional if it's the last plot)
+       width = 7, height = 10, dpi = 300, units = "in")
