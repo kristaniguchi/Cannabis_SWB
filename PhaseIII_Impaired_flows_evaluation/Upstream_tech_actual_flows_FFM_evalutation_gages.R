@@ -33,6 +33,8 @@
   library("glue")
   library("scales")
   library("fmsb")
+  library("readxl")
+  library(dataRetrieval)
 }
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
@@ -45,6 +47,12 @@ setwd(FFM_dir)
 #read in FFM lookup table for plots to get official names - saved in working directory 2 folders back
 metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv")
 
+#read in training sites for upstream impaired flows to see if any SWB validation gages are training
+training.sites.up <- read_excel("../../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
+  filter(model == "actual" ) %>% 
+  rename(Gage.ID = gage_id) %>% 
+  #if eval gage, label as validation, else training gage 
+  mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference"))
 
 ############################################################################################################################
 ## Tidying actual flows (Upstream Tech) and gaged functional flow metric values, only keep gage and associated model node FFM
@@ -52,7 +60,48 @@ metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/D
 #read in lookup table that has Gage.ID and model_ID
 #gage LU, linking gageID to COMID and other info,
 gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv") %>% 
-  mutate(dataset = "gages")
+  mutate(dataset = "gages") %>% 
+  #left join with training.sites.up to see if sites are validation or training
+  left_join(training.sites.up %>% select(Gage.ID, Upstream_Type), by="Gage.ID")
+
+####
+#get period of record for each USGS gage to filter out gages that have <5 years of overlapping data from Upstream model POR
+#function to get period of record for each gage
+get_por <- function(site_no) {
+  # Get metadata for the site
+  data <- whatNWISdata(siteNumber = site_no)
+  
+  # Filter to mean daily discharge (00060, statCd 00003)
+  data <- data %>%
+    filter(parm_cd == "00060", stat_cd == "00003")
+  
+  # Return first row if exists, else NA
+  if (nrow(data) > 0) {
+    return(data.frame(
+      Gage.ID = site_no,
+      begin_date = data$begin_date[1],
+      end_date = data$end_date[1]
+    ))
+  } else {
+    return(data.frame(
+      Gage.ID = site_no,
+      begin_date = NA,
+      end_date = NA
+    ))
+  }
+}
+
+# Get periods of record for all gages
+por_list <- lapply(gage_lu$Gage.ID, get_por)
+
+# Combine into one data frame
+por_df <- bind_rows(por_list)
+
+#join back to gage_lu
+gage_lu_por <- gage_lu %>%
+  left_join(por_df, by = "Gage.ID")
+####
+
 
 #list all files in FFM_dir
 list.files.all <- list.files(FFM_dir, full.names=TRUE)
@@ -79,8 +128,10 @@ gage.ffm <- gage.ffm1 %>%
   #remove rows with NA values
   na.omit()
 
-#only evaluate performance at gages that match POR of actual flows. all have <=4 years of data
-gage.ffm <- gage.ffm[! (gage.ffm$Gage.ID %in% c(11472800, 11472900, 11472200, 11472150, 11479700)),]
+#only evaluate performance at gages that match POR of actual flows (WY 2002-2022). all have <5 years of data
+#gage.ffm <- gage.ffm[! (gage.ffm$Gage.ID %in% c(11472800, 11472900, 11472200, 11472150, 11479700)),]
+gage.ffm <- gage.ffm[! (gage.ffm$Gage.ID %in% c(11479700, 11474500, 11472150, 11472200, 11472900, 11472800)),]
+
 
 
 #count number of ffm values per gage, we will later filter list to sites with at least 6 years of FFM data
@@ -293,7 +344,11 @@ for(j in 1:(length(unique.gage.ffm))){
   
   #combine gage and model data together into common df by year
   gage.model.FFM.join <- gage.ffm.sub %>% 
-    inner_join(model.ffm.sub.j, by=c("Year", "FFM", "Gage.ID", "COMID", "gage_ID_FFM"))
+    #inner_join(model.ffm.sub.j, by=c("Year", "FFM", "Gage.ID", "COMID", "gage_ID_FFM"))
+    inner_join(model.ffm.sub.j, by=c("Year", "FFM", "Gage.ID",  "gage_ID_FFM")) %>% 
+    #rename comid.x to COMID
+    rename(COMID = COMID.y)
+  
   
   #determine n years in common --> should have at least 10 to move forward
   n_annual_gage_model <- length(gage.model.FFM.join$Year)
@@ -369,30 +424,35 @@ for(j in 1:(length(unique.gage.ffm))){
   }
 }
 
+#add in gage type
+perf.criteria.FFM <- perf.criteria.FFM %>% 
+  mutate(Gage.ID = as.numeric(Gage.ID)) %>% 
+  left_join(gage_lu %>% select(Gage.ID, Upstream_Type), by="Gage.ID")
+
 #write the overall performance table so anyone can view the results, save in 1 directory back
 #dir.create("../FFM_eval/")
 write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
-  select(Gage.ID, FFM, composite_index, Type2) %>% 
+  select(Gage.ID, FFM, composite_index, Type2, Upstream_Type) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index)
 
 #tidy performance table for heatmap - composite using dispersion only
 perf.criteria.FFM.table.disp <- perf.criteria.FFM %>% 
-  select(Gage.ID, FFM, composite_index_disp, Type2) %>% 
+  select(Gage.ID, FFM, composite_index_disp, Type2, Upstream_Type) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index_disp)
 
 #round all columns except FFM by 2 digits
-perf.criteria.FFM.table[,3:21] <- round(data.frame(lapply(perf.criteria.FFM.table[,3:21],as.numeric)), 2)
-perf.criteria.FFM.table.disp[,3:21] <- round(data.frame(lapply(perf.criteria.FFM.table.disp[,3:21],as.numeric)), 2)
+perf.criteria.FFM.table[,4:22] <- round(data.frame(lapply(perf.criteria.FFM.table[,4:22],as.numeric)), 2)
+perf.criteria.FFM.table.disp[,4:22] <- round(data.frame(lapply(perf.criteria.FFM.table.disp[,4:22],as.numeric)), 2)
 
 
 ##########
 #####create heatmap of this table based on the categories for composite index all
 #pivot longer table
 #find ffm col names to pivot longer
-ffm.col.names <- names(perf.criteria.FFM.table)[3:21]
+ffm.col.names <- names(perf.criteria.FFM.table)[4:22]
 #remove peak timings as not standard FFM
 ind.peak.tim <- grep("^Peak_Tim_*", ffm.col.names)
 #if peak timing, then remove metric
@@ -420,12 +480,12 @@ ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index >= 0.9] <- "excel
 ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poor", "satisfactory", "good", "very good", "excellent", NA))
 
 #add an asterix to any validation Gage.ID
-#find index of validation gages
-ind.val <- grep("Validation", ffm_comp_ind_longer$Type2)
+#find index of training/calibration gages
+ind.cal <- grep("Reference", ffm_comp_ind_longer$Upstream_Type)
 #make a copy of Type2
 ffm_comp_ind_longer$Gage.ID2 <- as.character(ffm_comp_ind_longer$Gage.ID)
-#set validation gages with asterix
-ffm_comp_ind_longer$Gage.ID2[ind.val] <- paste0(ffm_comp_ind_longer$Gage.ID[ind.val], "*")
+#set validation gages with asterix (those not calibration/training, since one gage isn't listed as validation)
+ffm_comp_ind_longer$Gage.ID2[-ind.cal] <- paste0(ffm_comp_ind_longer$Gage.ID[-ind.cal], "*")
 
 #add in subbasins to ffm_comp_ind_longer
 ffm_comp_ind_longer2 <- ffm_comp_ind_longer %>% 
@@ -479,7 +539,7 @@ ggsave(heatmap, file="../FFM_eval/Model_performance_FFM_composite_Upstream_Actua
 #####create heatmap of this table based on the categories for composite index for dispersion only
 #pivot longer table
 #find ffm col names to pivot longer
-ffm.col.names <- names(perf.criteria.FFM.table.disp)[3:length(names(perf.criteria.FFM.table.disp))]
+ffm.col.names <- names(perf.criteria.FFM.table.disp)[4:length(names(perf.criteria.FFM.table.disp))]
 #remove peak timings as not standard FFM
 ind.peak.tim <- grep("^Peak_Tim_*", ffm.col.names)
 #if peak timing, then remove metric
@@ -492,7 +552,7 @@ if(length(ind.peak.tim > 0)){
 
 ffm_comp_ind_longer <- perf.criteria.FFM.table.disp %>% 
   #set all metric value columns to numeric
-  mutate(across(3:23, as.numeric)) %>% 
+  mutate(across(4:24, as.numeric)) %>% 
   pivot_longer(cols = ffm.col.names,
                values_to = "Composite_Index_Disp",
                names_to = "FFM") %>% 
@@ -514,12 +574,12 @@ ffm_comp_ind_longer$rating[ffm_comp_ind_longer$Composite_Index_Disp >= 0.9] <- "
 ffm_comp_ind_longer$rating <- factor(ffm_comp_ind_longer$rating, levels = c("poor", "satisfactory", "good", "very good", "excellent", NA))
 
 #add an asterix to any validation Gage.ID
-#find index of validation gages
-ind.val <- grep("Validation", ffm_comp_ind_longer$Type2.x)
+#find index of calibration/training gages
+ind.cal <- grep("Reference", ffm_comp_ind_longer$Upstream_Type.x)
 #make a copy of Type2
 ffm_comp_ind_longer$Gage.ID2 <- as.character(ffm_comp_ind_longer$Gage.ID)
 #set validation gages with asterix
-ffm_comp_ind_longer$Gage.ID2[ind.val] <- paste0(ffm_comp_ind_longer$Gage.ID[ind.val], "*")
+ffm_comp_ind_longer$Gage.ID2[-ind.cal] <- paste0(ffm_comp_ind_longer$Gage.ID[-ind.cal], "*")
 
 ffm_comp_ind_longer <- ffm_comp_ind_longer %>% 
   filter(FFM %in% unique(metric.names$flow_metric))
@@ -584,30 +644,33 @@ ggsave(combined_plot, file="../FFM_eval/Model_performance_FFM_composite_all_disp
 
 
 #add gage info to model.ffm and select certain columns
-model.ffm.2 <- model.ffm %>% 
+model.ffm.2 <- model.ffm.sub %>% 
   #add Gage.ID and gage_ID_FFM from gage_lu table, rename to Gage.ID, add gage_ID_FFM, and select only columns needed
-  left_join(gage_lu, by = c("Gage.ID", "COMID")) %>% 
+  left_join(gage_lu, by = c("Gage.ID")) %>% 
   mutate(gage_ID_FFM = paste0(Gage.ID, " ",FFM),
          scenario = "impaired") %>% 
-  select(Year, FFM, Value, scenario, COMID, Gage.ID, Type2, gage_ID_FFM) %>% 
+  select(Year, FFM, Value, scenario,  Gage.ID, Type2, gage_ID_FFM, Upstream_Type) %>% 
   #rename Value to value_model
   rename("Value_model"= "Value")
 
 #combine gage and model data together into common df by year FFM
 gage.model.FFM.join <- gage.ffm %>% 
-  inner_join(model.ffm.2, by=c("Year", "FFM", "Gage.ID", "COMID", "gage_ID_FFM")) %>% 
+  inner_join(model.ffm.2, by=c("Year", "FFM", "Gage.ID", "gage_ID_FFM")) %>% 
   #join to get huc9 subarea
   left_join(gage_lu %>% select(Gage.ID, HUC8.Subarea, Gage.Name), by = "Gage.ID")
 
+#filter to remove all calibration/training gages from plots
+ind.cal <- grep("Reference", gage.model.FFM.join$Upstream_Type)
+gage.model.FFM.join.val <- gage.model.FFM.join[-ind.cal,]
 
 #unique FFMs to loop through
-unique.ffm <- unique(gage.model.FFM.join$FFM)
+unique.ffm <- unique(gage.model.FFM.join.val$FFM)
 
 #Loop through each FFM and create violin plots and boxplots for each, explore faceting by gageID
 
 for(k in 1:length(unique.ffm)){
   #subset to ffm k
-  gage.model.FFM.join.sub <- gage.model.FFM.join %>% 
+  gage.model.FFM.join.val.sub <- gage.model.FFM.join.val %>% 
     filter(FFM == unique.ffm[k])
   
   #subset FFM names
@@ -620,7 +683,7 @@ for(k in 1:length(unique.ffm)){
   }else{
     #plot observed vs. modeled FFMs for all sites in one plot
     #scatter plot
-    scatter.all <- ggplot(gage.model.FFM.join.sub, aes(x = Value, y = Value_model, color = HUC8.Subarea)) +
+    scatter.all <- ggplot(gage.model.FFM.join.val.sub, aes(x = Value, y = Value_model, color = HUC8.Subarea)) +
       geom_point() +
       labs(
         title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
@@ -640,7 +703,7 @@ for(k in 1:length(unique.ffm)){
            width = 6, height = 4, dpi = 300, units = "in")
     
     #scatter plot by gageID
-    scatter.gage <- ggplot(gage.model.FFM.join.sub, aes(x = Value, y = Value_model, color = as.character(Gage.ID))) +
+    scatter.gage <- ggplot(gage.model.FFM.join.val.sub, aes(x = Value, y = Value_model, color = as.character(Gage.ID))) +
       geom_point() +
       labs(
         title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
@@ -664,15 +727,15 @@ for(k in 1:length(unique.ffm)){
     
     ###violin plot (boxplot)
     #pivot data longer
-    gage.model.FFM.join.sub.long <- gage.model.FFM.join.sub %>% 
+    gage.model.FFM.join.val.sub.long <- gage.model.FFM.join.val.sub %>% 
       pivot_longer(cols = c(Value, Value_model),
                    names_to = "Data",
                    values_to = "value")
     #change Data names to be displayed
-    gage.model.FFM.join.sub.long$Data <- gsub("Value_model", "Predicted SWB", gage.model.FFM.join.sub.long$Data)
-    gage.model.FFM.join.sub.long$Data <- gsub("Value", "Gage", gage.model.FFM.join.sub.long$Data)
+    gage.model.FFM.join.val.sub.long$Data <- gsub("Value_model", "Predicted SWB", gage.model.FFM.join.val.sub.long$Data)
+    gage.model.FFM.join.val.sub.long$Data <- gsub("Value", "Gage", gage.model.FFM.join.val.sub.long$Data)
     
-    violin.all <- ggplot(gage.model.FFM.join.sub.long, aes(x = Data, y = value, fill = Data)) +
+    violin.all <- ggplot(gage.model.FFM.join.val.sub.long, aes(x = Data, y = value, fill = Data)) +
       geom_violin(trim = TRUE, color = "black") +
       geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
       labs(title = paste0(metric.names.k$title_component2, metric.names.k$title_ffm),
@@ -689,7 +752,7 @@ for(k in 1:length(unique.ffm)){
     
     
     #facet violin plots by site
-    violin.facet <- ggplot(gage.model.FFM.join.sub.long, aes(x = Data, y = value, fill = Data)) +
+    violin.facet <- ggplot(gage.model.FFM.join.val.sub.long, aes(x = Data, y = value, fill = Data)) +
       geom_violin(trim = TRUE, color = "black") +
       geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
       #facet_grid(rows = vars(HUC8.Subarea), cols = vars(Gage.ID)) +
@@ -722,7 +785,7 @@ perf.criteria.FFM.SWB <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - 
 perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>% 
   select(Gage.ID, FFM, composite_index, Type2) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index) %>% 
-  mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #mutate(Gage.ID = as.character(Gage.ID)) %>% 
   #only keep rows with same matching gageIDs
   semi_join(perf.criteria.FFM.table, by="Gage.ID")
 
@@ -730,7 +793,7 @@ perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>%
 perf.criteria.FFM.table.disp.SWB <- perf.criteria.FFM.SWB %>% 
   select(Gage.ID, FFM, composite_index_disp, Type2) %>% 
   pivot_wider(names_from = FFM, values_from = composite_index_disp) %>% 
-  mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #mutate(Gage.ID = as.character(Gage.ID)) %>% 
   #only keep rows with same matching gageIDs
   semi_join(perf.criteria.FFM.table.disp, by="Gage.ID")
 
@@ -742,11 +805,15 @@ perf.criteria.FFM.table.disp.SWB.mean <- perf.criteria.FFM.table.disp.SWB[,3:14]
   summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
 
 
-#summarize and use mean score for every metric for Upstream
-perf.criteria.FFM.table.upstream.mean <- perf.criteria.FFM.table[,3:16] %>% 
+#summarize and use mean score for every metric for Upstream (filter to exclude training)
+#exclude all training/cal gages
+perf.criteria.FFM.table.val <- perf.criteria.FFM.table[!perf.criteria.FFM.table$Upstream_Type == "Reference",]
+perf.criteria.FFM.table.upstream.mean <- perf.criteria.FFM.table.val[,4:17] %>% 
   summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
 
-perf.criteria.FFM.table.disp.upstream.mean <- perf.criteria.FFM.table.disp[,3:16] %>% 
+#exclude all training/cal gages
+perf.criteria.FFM.table.disp.val <- perf.criteria.FFM.table.disp[!perf.criteria.FFM.table.disp$Upstream_Type == "Reference",]
+perf.criteria.FFM.table.disp.upstream.mean <- perf.criteria.FFM.table.disp.val[,4:17] %>% 
   summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
 
 #only keep common column metrics
@@ -774,7 +841,7 @@ data_for_plot.overall <- rbind(
 
 
 # Open PNG file to save as image
-svg("spider_plot_FFM_perf_SWB_Upstream.svg", width = 8, height = 8)
+svg("../FFM_eval/spider_plot_FFM_perf_SWB_Upstream.svg", width = 8, height = 8)
 
 # Create the radar plot for overall performance
 spider.plot <- radarchart(data_for_plot.overall,
@@ -801,7 +868,7 @@ data_for_plot.disp <- rbind(
 )
 
 # Open PNG file to save as image
-svg("spider_plot_FFM_perf_SWB_Upstream_dispersion.svg", width = 8, height = 8)
+svg("../FFM_eval/spider_plot_FFM_perf_SWB_Upstream_dispersion.svg", width = 8, height = 8)
 
 
 # Create the radar plot for dispersion performance only 
@@ -822,6 +889,128 @@ dev.off()
 
 #reset margin
 par(mar = c(5, 4, 4, 2))  # default bottom, left, top, right margins
+
+
+##################################################
+#make comparison performance plots for Upstream Actual vs. SWB Impaired,
+#subset only to common gages that are validation/testing only
+
+#find list of common validation/testing gages
+common_ids.all <- intersect(perf.criteria.FFM.table.SWB$Gage.ID, perf.criteria.FFM.table.val$Gage.ID)
+common_ids.all.disp <- intersect(perf.criteria.FFM.table.disp.SWB$Gage.ID, perf.criteria.FFM.table.disp.val$Gage.ID)
+
+#SWB tidy performance table for heatmap - composite using all criteria
+perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>% 
+  filter(Gage.ID %in% common_ids.all) %>% 
+  select(Gage.ID, FFM, composite_index, Type2) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index) %>% 
+  #mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #only keep rows with same matching gageIDs
+  semi_join(perf.criteria.FFM.table, by="Gage.ID")
+
+#SWB tidy performance table for heatmap - composite using dispersion only
+perf.criteria.FFM.table.disp.SWB <- perf.criteria.FFM.SWB %>% 
+  filter(Gage.ID %in% common_ids.all) %>% 
+  select(Gage.ID, FFM, composite_index_disp, Type2) %>% 
+  pivot_wider(names_from = FFM, values_from = composite_index_disp) %>% 
+  #mutate(Gage.ID = as.character(Gage.ID)) %>% 
+  #only keep rows with same matching gageIDs
+  semi_join(perf.criteria.FFM.table.disp, by="Gage.ID")
+
+#summarize and use the mean score for every metric
+perf.criteria.FFM.table.SWB.mean <- perf.criteria.FFM.table.SWB[,3:14] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+perf.criteria.FFM.table.disp.SWB.mean <- perf.criteria.FFM.table.disp.SWB[,3:14] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+
+#summarize and use mean score for every metric for Upstream (filter to exclude training)
+#exclude all training/cal gages
+perf.criteria.FFM.table.val <- perf.criteria.FFM.table[!perf.criteria.FFM.table$Upstream_Type == "Reference",]
+perf.criteria.FFM.table.upstream.mean <- perf.criteria.FFM.table.val[,4:17] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+#exclude all training/cal gages
+perf.criteria.FFM.table.disp.val <- perf.criteria.FFM.table.disp[!perf.criteria.FFM.table.disp$Upstream_Type == "Reference",]
+perf.criteria.FFM.table.disp.upstream.mean <- perf.criteria.FFM.table.disp.val[,4:17] %>% 
+  summarise(across(everything(), ~ mean(.x, na.rm = TRUE)))
+
+#only keep common column metrics
+common_cols <- intersect(names(perf.criteria.FFM.table.upstream.mean), names(perf.criteria.FFM.table.SWB.mean))
+#overall perf
+mean.perf.Upstream.common <- perf.criteria.FFM.table.upstream.mean[, common_cols, drop = FALSE]
+mean.perf.SWB.common <- perf.criteria.FFM.table.SWB.mean[, common_cols, drop = FALSE]
+#join together
+mean.perf.overall <- data.frame(bind_rows(mean.perf.Upstream.common, mean.perf.SWB.common))
+rownames(mean.perf.overall) <- c("Upstream", "SWB")
+
+#dispersion perf
+mean.perf.Upstream.common <- perf.criteria.FFM.table.disp.upstream.mean[, common_cols, drop = FALSE]
+mean.perf.SWB.common <- perf.criteria.FFM.table.disp.SWB.mean[, common_cols, drop = FALSE]
+#join together
+mean.perf.disp <- data.frame(bind_rows(mean.perf.Upstream.common, mean.perf.SWB.common))
+rownames(mean.perf.disp) <- c("Upstream", "SWB")
+
+# fmsb needs first two rows to be the max and min
+data_for_plot.overall <- rbind(
+  Max = rep(1, ncol(mean.perf.overall)),  # set max for axes
+  Min = rep(0, ncol(mean.perf.overall)),  # set min for axes
+  mean.perf.overall
+)
+
+
+# Open PNG file to save as image
+svg("../FFM_eval/spider_plot_FFM_perf_SWB_Upstream.common.gages.only.svg", width = 8, height = 8)
+
+# Create the radar plot for overall performance
+spider.plot <- radarchart(data_for_plot.overall,
+                          axistype = 1,
+                          pcol = c("blue", "red"),
+                          pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+                          plwd = 2,
+                          cglcol = "grey", cglty = 1,
+                          axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
+                          vlcex = 0.8) 
+
+legend("bottom", inset = c(0, -0.15), legend = c("Upstream", "SWB"),
+       pch=20, col=c("blue","red"), xpd = TRUE)
+
+# Close the device
+dev.off()
+
+###radar plot for dispersion performance only
+# fmsb needs first two rows to be the max and min
+data_for_plot.disp <- rbind(
+  Max = rep(1, ncol(mean.perf.overall)),  # set max for axes
+  Min = rep(0, ncol(mean.perf.overall)),  # set min for axes
+  mean.perf.disp
+)
+
+# Open PNG file to save as image
+svg("../FFM_eval/spider_plot_FFM_perf_SWB_Upstream_dispersion_common_gages_only.svg", width = 8, height = 8)
+
+
+# Create the radar plot for dispersion performance only 
+radarchart(data_for_plot.disp,
+           axistype = 1,
+           pcol = c("blue", "red"),
+           pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+           plwd = 2,
+           cglcol = "grey", cglty = 1,
+           axislabcol = "grey", caxislabels = seq(0, 1, 0.2), cglwd = 0.8,
+           vlcex = 0.8)
+
+legend("bottom", inset = c(0, -0.1), legend = c("Upstream", "SWB"),
+       pch=20, col=c("blue","red"), xpd = TRUE)
+
+# Close the device
+dev.off()
+
+#reset margin
+par(mar = c(5, 4, 4, 2))  # default bottom, left, top, right margins
+
+
 
 ###################Bar plots summarizing number of metrics that fell into each category per gage
 
