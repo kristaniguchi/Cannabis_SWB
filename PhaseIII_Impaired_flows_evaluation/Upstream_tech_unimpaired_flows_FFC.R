@@ -1,6 +1,6 @@
-#### Calculate functional flow metrics from daily unimpaired flows by Upstream Tech
+#### Calculate functional flow metrics from mean daily unimpaired flows by Upstream Tech
 #multiple csv files for each gage and also comids associated with biosites
-#also calculate FFMs at gages for entire POR (or matching POR where have actual flows)
+#also calculate FFMs at gages for entire POR (or matching POR where have unimpaired flows)
 
 #### load necessary libraries
 # for first time users, use the following line to install ffc API package:
