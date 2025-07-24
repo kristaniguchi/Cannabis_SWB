@@ -196,7 +196,7 @@ for(i in 1:length(unique.gages)){
   #subset to gage lu i
   gage_lu.sub <- gage_lu[gage_lu$Gage.ID == unique.gages[i],]
   
-  ##if gage ID has a historical POR,  don't set start and end date
+  ##if gage ID has a historical POR,  don't set start and end date. 11472800 WY 1968-2005,11472900/11472200/11472150 WY 1959-2005, 11479700 WY 1958-1967, all only have <=4 yr overlap
   if(unique.gages[i] %in% c(11472800, 11472900, 11472200, 11472150, 11479700)){
     # Define query parameters
     params <- list(
