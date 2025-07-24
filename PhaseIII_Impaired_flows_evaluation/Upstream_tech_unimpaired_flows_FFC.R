@@ -4,7 +4,7 @@
 
 #### load necessary libraries
 # for first time users, use the following line to install ffc API package:
-install.packages("httr", 'xml2')  
+#install.packages("httr", 'xml2')  
 
 
 {
@@ -49,6 +49,19 @@ gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/W
 
 #FFM metric names etc
 metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/all_metric_def_list_FFMs_v2 1.csv")
+
+#read in training sites for upstream impaired flows to see if any SWB validation gages are training
+training.sites.up <- read_excel("../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
+  filter(model == "unimpaired" ) %>% 
+  rename(Gage.ID = gage_id) %>% 
+  #if eval gage, label as validation, else training gage 
+  mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference")) %>% 
+  left_join(gage_lu %>% select(Gage.ID, Type, Type2, Validation_Notes, Notes), by="Gage.ID") %>% 
+  #exclude gages labeled impaired from analysis
+  mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference")) %>% 
+  
+
+#identify matching 
 
 ######################################
 ###Loop to calculate FFMs (annual) for all locations of interest (LOIs)
