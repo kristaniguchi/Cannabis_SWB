@@ -50,18 +50,25 @@ gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/W
 #FFM metric names etc
 metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/all_metric_def_list_FFMs_v2 1.csv")
 
-#read in training sites for upstream impaired flows to see if any SWB validation gages are training
-training.sites.up <- read_excel("../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
+#read in training sites for upstream unimpiared flows to see if any SWB validation gages are training
+testing.sites.up <- read_excel("../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
   filter(model == "unimpaired" ) %>% 
   rename(Gage.ID = gage_id) %>% 
   #if eval gage, label as validation, else training gage 
   mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference")) %>% 
   left_join(gage_lu %>% select(Gage.ID, Type, Type2, Validation_Notes, Notes), by="Gage.ID") %>% 
   #exclude gages labeled impaired from analysis
-  mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference")) %>% 
+  mutate(Upstream_Type = ifelse(`function` == "eval", "Validation", "Reference")) %>%
+  #filter to matching gages in North Coast only (ref and validation)
+  filter(Type == "Reference" | Type == "Validation") %>% 
+  #filter to only validation gages upstream
+  filter(Upstream_Type == "Validation")
   
 
-#identify matching 
+#identify matching validation sites for upstream and SWB
+testing.matching.both.models <- testing.sites.up %>% 
+  filter(`function` == "eval" , Type2 == "Validation") 
+  
 
 ######################################
 ###Loop to calculate FFMs (annual) for all locations of interest (LOIs)
@@ -171,21 +178,13 @@ unique.sites.out <- unique(outputs_ffc$COMID)
 
 
 #################################################################################
-#calculate FFMs for all gages where we have predictions. Match POR to impaired flows
-# set wd
-#setwd("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/FFMs_LOI_NC_benchmark_sites/")
-setwd("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/")
+#calculate FFMs for all gages where we have predictions. Match POR to unimpaired flows
 
-###Load data
+#already calculated all validation gages from SWB in previous upstream ffc script.  
+#Just missing one gage that was SWB calibration but validation for upstream unimpaired
+unique.gages <- 11475800
 
-#### read-in data and lookup tables
-#gage LU, linking gageID to PRMS model_ID,
-gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv") %>% 
-  mutate(dataset = "gages") %>% 
-  filter(Type2 == "Validation")
-unique.gages <- unique(gage_lu$Gage.ID)
-
-#set period of record for FFM calculations to WY 2002-2022 (POR for upstream impaired flows)
+#set period of record for FFM calculations to WY 2002-2022 (POR for upstream unimpaired flows)
 POR <- c(2002, 2022)
 
 #FFM metric names etc
@@ -271,6 +270,6 @@ for(i in 1:length(unique.gages)){
 }
 
 #write csv
-write.csv(outputs_ffc, file=paste0(upstream.dir,"FFM//Obs_FFM_validation_gages_upstreamtech_POR.csv"))
+write.csv(outputs_ffc, file=paste0(upstream.dir,"FFM//Obs_FFM_validation_gages_upstreamtech_POR_unimpaired_2.csv"))
 unique.sites.out <- unique(outputs_ffc$siteID)
 
