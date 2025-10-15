@@ -477,6 +477,19 @@ perf.criteria.FFM.table[,4:24] <- round(data.frame(lapply(perf.criteria.FFM.tabl
 perf.criteria.FFM.table.disp[,4:24] <- round(data.frame(lapply(perf.criteria.FFM.table.disp[,4:24],as.numeric)), 2)
 
 
+#summary: mean dispersion performance across all validation gage, unimpaired flows
+perf.criteria.FFM.table.disp.mean <- perf.criteria.FFM.table.disp %>% 
+  filter(Upstream_Type == "Validation") %>% 
+  summarise(
+    across(
+      c(Wet_BFL_Mag_10:Peak_Fre_5),  # all columns from Wet_BFL_Mag_10 to Peak_Fre_5
+      mean,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) 
+  
+
 ##########
 #####create heatmap of this table based on the categories for composite index all
 #pivot longer table

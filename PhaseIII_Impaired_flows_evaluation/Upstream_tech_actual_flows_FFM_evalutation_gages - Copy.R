@@ -1111,3 +1111,50 @@ barplot.2 <- ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rat
 ggsave(paste0("../FFM_eval/model_comparison_barplot_counts_perf_category_overall.jpg"),        # file name
        plot = barplot.2,       # plot object (optional if it's the last plot)
        width = 7, height = 10, dpi = 300, units = "in")
+
+
+
+#########summary of overall performance for all metrics upstream tech models of unimpaired and actual flows at validation/testing gages only
+
+#read in unimpaired flows performance all gages 
+unimpaired.perf.all <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Unimpaired_flows.csv") %>% 
+  filter(Upstream_Type == "Validation") %>% 
+  #exclude gage metrics < 5 years of metrics calculated
+  filter(n_annual_gage_model >= 5,
+         #keep only north coast gages used in PRMS model
+         Gage.ID %in% gage_lu$Gage.ID) %>% 
+  #left join the gage type (to screen out impaired gages) 
+  left_join(gage_lu, by = "Gage.ID") %>% 
+  #screen out impaired gages 
+  filter(Validation_Notes != "Impaired") %>% 
+  #group by FFM and find mean for composite_index and composite_index_disp
+  group_by(FFM) %>%
+  summarise(
+    mean_composite_index = mean(composite_index, na.rm = TRUE),
+    mean_composite_index_disp = mean(composite_index_disp, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  mutate(model = "Upstream Tech Unimpaired Flows")
+
+#read in actual flows performance all gages
+actual.perf.all <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv") %>% 
+  filter(Upstream_Type == "Validation") %>% 
+  #exclude gage metrics < 5 years of metrics calculated
+  filter(n_annual_gage_model >= 5,
+         #keep only north coast gages used in PRMS model
+         Gage.ID %in% gage_lu$Gage.ID) %>% 
+  #group by FFM and find mean for composite_index and composite_index_disp
+  group_by(FFM) %>%
+  summarise(
+    mean_composite_index = mean(composite_index, na.rm = TRUE),
+    mean_composite_index_disp = mean(composite_index_disp, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  mutate(model = "Upstream Tech Actual Flows")
+
+#combine the two overall performance summary tables
+summary.performance.all <- unimpaired.perf.all %>% 
+  bind_rows(actual.perf.all)
+
+
+write.csv(summary.performance.all, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_overall_actual_unimpaired_validation_Gages_NC_mean.csv")
