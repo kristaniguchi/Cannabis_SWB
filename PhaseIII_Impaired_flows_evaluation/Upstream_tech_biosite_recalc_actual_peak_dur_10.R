@@ -136,5 +136,15 @@ median_delta <- biosite_FFMs.peakdur10 %>%
     .groups = "drop"
   )
 
+#plot actual (original) versus actual recalc (all annual data)
+ggplot(median_delta, aes(x = Median_Delta_Orig, y = Median_Delta_Recalc )) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    x = "Original Delta Actual Peak 10 Duration (days)",
+    y = "Recalc Delta Actual Peak 10 Duration (days)"
+  ) +
+  theme_minimal()
+
 #write.csv
 write.csv()
