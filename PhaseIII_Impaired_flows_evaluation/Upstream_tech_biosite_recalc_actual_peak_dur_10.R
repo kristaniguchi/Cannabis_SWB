@@ -92,6 +92,9 @@ for(i in 1:length(unique.comid)) {
       percent_above = 100 * mean(flow >=  Value_Unimpaired, na.rm = TRUE)
     )
   
+  #replace 0s with NA, consistent with updated FFC
+  days_above_thresh$days_above[days_above_thresh$days_above==0] <- NA
+  
   #create output df for new recalc ffm:
   #subset FFM (natural) for comid i
   biosite_FFMs.i.out <- biosite_FFMs %>% 
@@ -105,7 +108,6 @@ for(i in 1:length(unique.comid)) {
   #append to output df
   out.updated.peak10dur <- bind_rows(out.updated.peak10dur, biosite_FFMs.i.out)
 
-  
 }
 
 #subset FFM all to peak dur 10
@@ -147,4 +149,5 @@ ggplot(median_delta, aes(x = Median_Delta_Orig, y = Median_Delta_Recalc )) +
   theme_minimal()
 
 #write.csv
-write.csv()
+write.csv(biosite_FFMs.peakdur10, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/recalc_actual_peakdur10.csv")
+write.csv(median_delta, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/recalc_mediandelta_peakdur10.csv")
