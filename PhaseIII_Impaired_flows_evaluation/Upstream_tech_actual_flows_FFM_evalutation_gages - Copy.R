@@ -432,6 +432,7 @@ perf.criteria.FFM <- perf.criteria.FFM %>%
 #write the overall performance table so anyone can view the results, save in 1 directory back
 #dir.create("../FFM_eval/")
 write.csv(perf.criteria.FFM, file="../FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv")
+#perf.criteria.FFM <- read.csv(file="../FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv")
 
 #tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table <- perf.criteria.FFM %>% 
@@ -1158,3 +1159,93 @@ summary.performance.all <- unimpaired.perf.all %>%
 
 
 write.csv(summary.performance.all, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_overall_actual_unimpaired_validation_Gages_NC_mean.csv")
+
+#####################
+#make radar/spider plots comparing upstream unimpaired and actual models mean composite index
+# 1. Add asterisk labels for FFMs with mean_composite_index < 0.5
+df.mean <- summary.performance.all %>%
+  mutate(
+    FFM_label = ifelse(mean_composite_index < 0.5,
+                       paste0(FFM, "*"),
+                       FFM)
+  )
+
+# 2. Make wide: one row per model, one column per FFM_label
+radar_df <- summary.performance.all %>%
+  select(model, FFM, mean_composite_index) %>%
+  pivot_wider(
+    names_from  = FFM,
+    values_from = mean_composite_index
+  )
+
+df.mean %>% count(model, FFM_label)
+
+# 3. Move model to rownames and drop it as a column
+radar_dat <- as.data.frame(radar_df)
+rownames(radar_dat) <- radar_dat$model
+radar_dat$model <- NULL
+
+# 4. Force all remaining columns to be numeric
+radar_dat[] <- lapply(radar_dat, as.numeric)
+
+# 5. Add max/min rows for fmsb
+max_row <- rep(1, ncol(radar_dat))
+min_row <- rep(0, ncol(radar_dat))
+
+radar_ready <- rbind(max_row, min_row, radar_dat)
+rownames(radar_ready)[1:2] <- c("max", "min")
+
+#flag all with mean_composite_index < 0.5
+ffm_flags <- summary.performance.all %>%
+  group_by(FFM) %>%
+  summarise(flag_low = any(mean_composite_index < 0.5, na.rm = TRUE), .groups = "drop")
+
+ffm_order <- colnames(radar_ready)  # this includes only FFM columns (since model is gone)
+
+label_df <- tibble(FFM = ffm_order) %>%
+  left_join(ffm_flags, by = "FFM") %>%
+  mutate(
+    flag_low = replace_na(flag_low, FALSE),
+    FFM_label = ifelse(flag_low, paste0(FFM, "*"), FFM)
+  )
+
+vlabels <- label_df$FFM_label
+
+# Open PNG file to save as image
+svg("../FFM_eval/spider_plot_FFM_perf_Upstream_mean_overall.svg", width = 8, height = 8)
+
+
+# 6. Plot radar chart
+cols <- c("blue", "red")  # order must match rownames(radar_dat)
+
+radarchart(
+  radar_ready,
+  axistype = 1,
+  vlabels = vlabels, 
+  pcol  = cols,
+  pfcol = c(rgb(0,0,1,0.3), rgb(1,0,0,0.3)),
+  plwd  = 2,
+  cglcol = "grey", cglty = 1,
+  axislabcol = "grey",
+  caxislabels = seq(0, 1, 0.2),
+  cglwd = 0.8,
+  vlcex = 0.8
+)
+
+legend(
+  "bottom",
+  inset = c(0, -0.3),
+  legend = c("Unimpaired Flows", "Actual Flows"),   # e.g., "Unimpaired Flow Model", "Actual Flow Model"
+  pch = 20,
+  col = cols,
+  xpd = TRUE,
+  bty = "n"
+)
+
+
+# Close the device
+dev.off()
+
+#reset margin
+par(mar = c(5, 4, 4, 2))  # default bottom, left, top, right margins
+
