@@ -1213,7 +1213,7 @@ vlabels <- label_df$FFM_label
 
 # Open PNG file to save as image
 svg("../FFM_eval/spider_plot_FFM_perf_Upstream_mean_overall.svg", width = 8, height = 8)
-
+par(mar = c(8, 4, 4, 2))  # ↑ big bottom margin to allow legend
 
 # 6. Plot radar chart
 cols <- c("blue", "red")  # order must match rownames(radar_dat)
@@ -1234,7 +1234,7 @@ radarchart(
 
 legend(
   "bottom",
-  inset = c(0, -0.3),
+  inset = c(0, -0.1),
   legend = c("Unimpaired Flows", "Actual Flows"),   # e.g., "Unimpaired Flow Model", "Actual Flow Model"
   pch = 20,
   col = cols,

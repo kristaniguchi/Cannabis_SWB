@@ -198,6 +198,17 @@ model.ffm.years <- model.ffm.sub %>%
   #create new column of model_ID and FFM
   mutate(gage_ID_FFM = paste0(Gage.ID, " ", FFM))
 
+peak10_check <- gage.ffm.years %>%
+  filter(FFM == "Peak_Dur_10") %>%
+  rename(n_obs = n) %>%
+  full_join(
+    model.ffm.years %>% filter(FFM == "Peak_Dur_10") %>% rename(n_pred = n),
+    by = c("Gage.ID", "FFM", "gage_ID_FFM")
+  ) %>%
+  left_join(gage_lu %>% select(Gage.ID, Upstream_Type), by = "Gage.ID") %>%
+  filter(Upstream_Type == "Validation")
+
+write.csv(peak10_check, "peak10_dur_check.csv", row.names = FALSE)
 
 #calculate predicted percentiles from annual FFM PRMS data --> used for step 1 below
 pred.percentiles <- model.ffm.sub %>%
@@ -1164,3 +1175,8 @@ barplot.2 <- ggplot(summary_counts_component, aes(x = Gage.ID, y = n, fill = rat
 ggsave(paste0("../FFM_eval/unimpaired_plots/model_comparison_barplot_counts_perf_category_overall.jpg"),        # file name
        plot = barplot.2,       # plot object (optional if it's the last plot)
        width = 7, height = 10, dpi = 300, units = "in")
+
+
+
+########################################################################
+###additional performance plots 
