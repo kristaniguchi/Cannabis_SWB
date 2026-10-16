@@ -23,7 +23,7 @@ recalc_peakdur10 <- read.csv(file.path(FFM_dir, "recalc_mediandelta_peakdur10.cs
 #############################
 #### FFM lookup: names, flow characteristic, curve/exclusion status
 
-#magnitude metrics are expressed as % change relative to unimpaired; all others as absolute difference
+#magnitude metrics are expressed as relative change from unimpaired (proportion, consistent with Table 1); all others as absolute difference
 mag.ffm <- c("FA_Mag", "Wet_BFL_Mag_10", "Wet_BFL_Mag_50", "Peak_2", "Peak_5", "Peak_10",
              "SP_Mag", "DS_Mag_50", "DS_Mag_90", "DS_7d_Low_Mag")
 
@@ -72,19 +72,21 @@ ffm.lu <- tribble(
   mutate(Status = case_when(FFM %in% curve.ffm ~ "Used in a Type 1 curve",
                             FFM %in% excl.ffm ~ "Excluded (poor model performance)",
                             TRUE ~ "Retained, not selected"),
-         Units = case_when(FFM %in% mag.ffm ~ "% change",
+         Units = case_when(FFM %in% mag.ffm ~ "relative change",
                            Characteristic == "Frequency" ~ "events",
                            Characteristic == "Rate of change" ~ "difference",
-                           TRUE ~ "days"))
+                           TRUE ~ "days"),
+         Status = factor(Status, levels = c("Used in a Type 1 curve", "Retained, not selected", 
+                                            "Excluded (poor model performance)")))
 
 #############################
 #### Calculate annual delta FFM, then median delta per site (COMID)
 
-#annual delta: % change for magnitude metrics, absolute difference for all others
+#annual delta: relative change (proportion) for magnitude metrics, absolute difference for all others
 delta.annual <- biosite_FFMs %>%
   filter(!is.na(Value_Unimpaired), !is.na(Value_Actual)) %>%
   mutate(Delta = case_when(FFM %in% mag.ffm & Value_Unimpaired > 0 ~
-                             100 * (Value_Actual - Value_Unimpaired) / Value_Unimpaired,
+                             (Value_Actual - Value_Unimpaired) / Value_Unimpaired,
                            FFM %in% mag.ffm ~ NA_real_,
                            TRUE ~ Value_Actual - Value_Unimpaired))
 
@@ -102,12 +104,15 @@ delta.site <- delta.annual %>%
   filter(!is.na(Median_Delta)) %>%
   left_join(ffm.lu, by = "FFM")
 
+#note: water years in the FFM record
+range(delta.annual$Year)
+
 write.csv(delta.site, file = file.path(out_dir, "NC_Biosites_median_delta_FFM.csv"), row.names = FALSE)
 
 #############################
 #### Summary table (appendix table)
 
-#threshold for "meaningful" alteration: >10% for magnitude, >7 days for timing
+#threshold for "meaningful" alteration: >0.10 relative change for magnitude, >7 days for timing
 summary.table <- delta.site %>%
   group_by(Characteristic, FFM, FFM_name, Units, Status) %>%
   summarise(n_sites = n(),
@@ -121,13 +126,14 @@ summary.table <- delta.site %>%
             Pct_sites_depleted = 100 * mean(Median_Delta < 0),
             Pct_sites_augmented = 100 * mean(Median_Delta > 0),
             Pct_sites_exceed_thresh = case_when(
-              first(Units) == "% change" ~ 100 * mean(abs(Median_Delta) > 10),
+              first(Units) == "relative change" ~ 100 * mean(abs(Median_Delta) > 0.10),
               first(Characteristic) == "Timing" ~ 100 * mean(abs(Median_Delta) > 7),
               TRUE ~ NA_real_),
             .groups = "drop") %>%
   mutate(Characteristic = factor(Characteristic, levels = c("Magnitude", "Timing", "Duration", "Frequency", "Rate of change"))) %>%
   arrange(Characteristic, match(FFM, ffm.lu$FFM)) %>%
-  mutate(across(where(is.numeric) & !n_sites, ~ round(.x, 1)))
+  mutate(across(c(Median, Q25, Q75, P05, P95, Min, Max), ~ ifelse(Units == "relative change", round(.x, 2), round(.x, 1))),
+         across(starts_with("Pct_"), ~ round(.x, 0)))
 
 write.csv(summary.table, file = file.path(out_dir, "TableA_FFM_alteration_summary_biosites.csv"), row.names = FALSE)
 
@@ -141,7 +147,7 @@ status.cols <- c("Used in a Type 1 curve" = "#2a6fb0",
 #x-axis limits per panel; points beyond limits are clipped to the edge and counted
 panel.lims <- tribble(
   ~Characteristic, ~xmin, ~xmax, ~xlab,
-  "Magnitude",     -100,  250,   "Change relative to unimpaired (%)",
+  "Magnitude",     -1,    2.5,   "Relative change from unimpaired",
   "Timing",        -100,  70,    "Change from unimpaired (days; + = later)",
   "Duration",      -50,   140,   "Change from unimpaired (days)"
 )
@@ -172,7 +178,7 @@ plot_panel <- function(char, title) {
               inherit.aes = FALSE, hjust = -0.15, size = 2.4, color = "grey35") +
     geom_text(data = lab.dat %>% filter(!is.na(over_lab)), aes(x = lims$xmax, y = FFM_label, label = over_lab),
               inherit.aes = FALSE, hjust = 1, vjust = -1.1, size = 2.2, color = "grey35") +
-    scale_color_manual(values = status.cols, drop = FALSE) +
+    scale_color_manual(values = status.cols, limits = names(status.cols), drop = FALSE) +
     coord_cartesian(xlim = c(lims$xmin, lims$xmax), clip = "off") +
     labs(title = title, x = lims$xlab, y = NULL, color = NULL) +
     theme_classic(base_size = 9) +
@@ -181,7 +187,8 @@ plot_panel <- function(char, title) {
           axis.line = element_line(color = "grey60", linewidth = 0.3),
           axis.ticks = element_line(color = "grey60", linewidth = 0.3),
           plot.margin = margin(5, 30, 5, 5),
-          legend.position = "top")
+          legend.position = "top",
+          legend.text = element_text(size = 8))
 }
 
 p.mag <- plot_panel("Magnitude", "A. Magnitude")
