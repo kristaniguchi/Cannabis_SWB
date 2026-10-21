@@ -357,7 +357,7 @@ for(j in 1:(length(unique.gage.ffm))){
     }
     
     #composite performance index (mean of all 6 criteria)
-    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, O_E_scaled, R2), na.rm=TRUE)
+    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, mean_O_E_scaled, R2), na.rm=TRUE)
     composite_index_disp <- mean(c(I80R_10_90_scaled, IQR_25_75_scaled), na.rm=TRUE)
     
     #save all values in output for evaluation (raw, scaled, composite)

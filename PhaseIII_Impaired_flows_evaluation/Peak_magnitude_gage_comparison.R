@@ -11,9 +11,18 @@
 }
 
 #data directories (change to your local directory)
-FFM_dir  <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
-eval_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/"
-out_dir  <- "C:/Users/kristinet/Documents/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
+#PC desktop
+#FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#MacBook
+FFM_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#PC desktop
+#eval_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/"
+#MacBook
+eval_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/"
+#PC desktop
+#out_dir <- "C:/Users/kristinet/Documents/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
+#MacBook
+out_dir <- "/Users/kristq/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
 dir.create(out_dir, showWarnings = FALSE)
 
 peak.ffm <- c("Peak_2", "Peak_5", "Peak_10")

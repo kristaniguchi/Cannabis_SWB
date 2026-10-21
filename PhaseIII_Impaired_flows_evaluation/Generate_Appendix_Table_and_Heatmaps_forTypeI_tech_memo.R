@@ -22,14 +22,27 @@ library(officer)
 ## 0. SET PATHS - update these to match your local setup
 ## ================================================================
 
-ffm_eval_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval"
+#Cannabis E-Flows SharePoint root (switch between computers here; all paths below are built from sp_dir)
+#PC desktop
+#sp_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/"
+#MacBook
+sp_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/"
+
+ffm_eval_dir <- paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval")
 
 unimpaired_summary_path <- file.path(ffm_eval_dir, "Model_performance_FFM_summary_Upstream_Unimpaired_flows.csv")
 actual_summary_path     <- file.path(ffm_eval_dir, "Model_performance_FFM_summary_Upstream_Actual_flows.csv")
 
-gage_lu_path <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv"
+gage_lu_path <- paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv")
 
-metric_names_path <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv"
+metric_names_path <- paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv")
+
+#repo folder (Q99 performance written by Q99_gage_validation_and_biosite_delta.R)
+#PC desktop
+#repo_dir <- "C:/Users/kristinet/Documents/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/"
+#MacBook
+repo_dir <- "/Users/kristq/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/"
+q99_perf_path <- file.path(repo_dir, "FFM_alteration_range/Q99_performance_validation_gages.csv")
 
 
 ## ================================================================
@@ -42,10 +55,53 @@ actual.summary     <- read.csv(actual_summary_path)     %>% mutate(model_label =
 gage_lu      <- read.csv(gage_lu_path)
 metric.names <- read.csv(metric_names_path)
 
+#add names for Ayers et al. (2024) dry-season metrics that are not in the lookup table (otherwise dropped from heatmaps)
+metric.names <- bind_rows(metric.names,
+  data.frame(flow_component = "Dry-season baseflow",
+             flow_metric = c("DS_7d_Low_Mag", "DS_7d_Low_Tim", "DS_No_Flow_Tim", "DS_No_Flow_Dur"),
+             title_name = c("Dry-Season Baseflow: 7-Day Low Flow Magnitude", "Dry-Season Baseflow: 7-Day Low Flow Timing",
+                            "Dry-Season Baseflow: First Zero-Flow Day", "Dry-Season Baseflow: No-Flow Duration")) %>% 
+    filter(!flow_metric %in% metric.names$flow_metric))
+
+#add Q99 (evaluated separately with the same criteria) to each model's per-gage summary,
+#at that model's testing gages only, so it appears in the heatmaps
+q99.perf <- read.csv(q99_perf_path) %>% filter(Validation_gage)
+
+add_q99 <- function(summary.df, model_name) {
+  q99.rows <- q99.perf %>% 
+    filter(Model == model_name) %>% 
+    transmute(Gage.ID, FFM = "Q99", composite_index, composite_index_disp,
+              n_annual_gage_model = n_annual, Upstream_Type = "Validation") %>% 
+    left_join(summary.df %>% distinct(Gage.ID, Type2), by = "Gage.ID") %>% 
+    mutate(model_label = unique(summary.df$model_label))
+  bind_rows(summary.df, q99.rows)
+}
+unimpaired.summary <- add_q99(unimpaired.summary, "Unimpaired")
+actual.summary     <- add_q99(actual.summary, "Actual")
+
 
 ## ================================================================
 ## 2. SITE / VALIDATION GAGE TABLE - updated formatting
 ## ================================================================
+
+# validation (testing) gages for each model, same filters as the overall mean performance summary
+# (Upstream_Type == "Validation" per Upstream Tech eval designation, >= 5 annual values, North Coast gages)
+# no PRMS impaired-gage screen: pure model performance uses all Upstream Tech testing gages
+unimpaired.gages <- unimpaired.summary %>%
+  filter(Upstream_Type == "Validation",
+         n_annual_gage_model >= 5,
+         Gage.ID %in% gage_lu$Gage.ID) %>%
+  group_by(Gage.ID) %>%
+  summarise(n_years = max(n_annual_gage_model, na.rm = TRUE), .groups = "drop") %>%
+  mutate(model = "Unimpaired")
+
+actual.gages <- actual.summary %>%
+  filter(Upstream_Type == "Validation",
+         n_annual_gage_model >= 5,
+         Gage.ID %in% gage_lu$Gage.ID) %>%
+  group_by(Gage.ID) %>%
+  summarise(n_years = max(n_annual_gage_model, na.rm = TRUE), .groups = "drop") %>%
+  mutate(model = "Actual")
 
 # keep Gage.ID as character so flextable doesn't add thousands separators
 site.table.appendix <- bind_rows(unimpaired.gages, actual.gages) %>%

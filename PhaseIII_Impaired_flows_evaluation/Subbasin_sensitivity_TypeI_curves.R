@@ -7,7 +7,12 @@
   library("dplyr")
 }
 
-load("C:/path/to/input_data/00_bugs_algae_flow_joined_by_comid.RData")  #update path
+#Lara's joined bio-flow dataset (copy received Oct 2026; contains duplicated rows, deduplicated below)
+#PC desktop
+#bio_flow_file <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Bio/TypeI_curve_inputs_Lara/00_bugs_algae_flow_joined_by_comid.RData"
+#MacBook
+bio_flow_file <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/Data/RawData/Bio/TypeI_curve_inputs_Lara/00_bugs_algae_flow_joined_by_comid.RData"
+load(bio_flow_file)
 
 #NOTE: every masterid x Type x FFM appears twice in AllData (duplicate rows in Bio_Stream_Type_Land_Use_summary.csv)
 dat <- AllData %>% distinct(masterid, Type, FFM, .keep_all = TRUE)

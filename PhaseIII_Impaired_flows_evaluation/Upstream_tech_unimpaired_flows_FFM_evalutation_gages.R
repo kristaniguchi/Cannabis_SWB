@@ -38,13 +38,19 @@
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 #FFM directory where all gage FFMs and upstream tech ffms are saved
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#Cannabis E-Flows SharePoint root (switch between computers here; all paths below are built from sp_dir)
+#PC desktop
+#sp_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/"
+#MacBook
+sp_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/"
+
+FFM_dir <- paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/")
 
 #set working directory to FFM_dir
 setwd(FFM_dir)
 
 #read in FFM lookup table for plots to get official names - saved in working directory 2 folders back
-metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv")
+metric.names <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv"))
 
 #read in training sites for upstream unimpaired flows to see if any SWB validation gages are training
 training.sites.up <- read_excel("../../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
@@ -55,7 +61,7 @@ training.sites.up <- read_excel("../../all-training-eval-sites-in-ca.xlsx", shee
 
 #read in lookup table that has Gage.ID and model_ID
 #gage LU, linking gageID to COMID and other info,
-gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv") %>% 
+gage_lu <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv")) %>% 
   mutate(dataset = "gages") %>% 
   #left join with training.sites.up to see if sites are validation or training
   left_join(training.sites.up %>% select(Gage.ID, Upstream_Type), by="Gage.ID")
@@ -89,7 +95,8 @@ testing.matching.both.models <- testing.sites.up %>%
 #function to get period of record for each gage
 get_por <- function(site_no) {
   # Get metadata for the site
-  data <- whatNWISdata(siteNumber = site_no)
+  #override_error: NWIS legacy services retire Feb 22, 2027 (switch to read_waterdata_combined_meta before then)
+  data <- whatNWISdata(siteNumber = site_no, override_error = TRUE)
   
   # Filter to mean daily discharge (00060, statCd 00003)
   data <- data %>%
@@ -112,14 +119,15 @@ get_por <- function(site_no) {
 }
 
 # Get periods of record for all gages
-por_list <- lapply(gage_lu$Gage.ID, get_por)
+#POR lookup skipped: legacy NWIS site service is slow/retiring and gage_lu_por is not used downstream
+#por_list <- lapply(gage_lu$Gage.ID, get_por)
 
-# Combine into one data frame
-por_df <- bind_rows(por_list)
+## Combine into one data frame
+#por_df <- bind_rows(por_list)
 
-#join back to gage_lu
-gage_lu_por <- gage_lu %>%
-  left_join(por_df, by = "Gage.ID")
+##join back to gage_lu
+#gage_lu_por <- gage_lu %>%
+#  left_join(por_df, by = "Gage.ID")
 ####
 
 
@@ -455,7 +463,7 @@ for(j in 1:(length(unique.gage.ffm))){
     }
     
     #composite performance index (mean of all 6 criteria)
-    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, O_E_scaled, R2), na.rm=TRUE)
+    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, mean_O_E_scaled, R2), na.rm=TRUE)
     composite_index_disp <- mean(c(I80R_10_90_scaled, IQR_25_75_scaled), na.rm=TRUE)
     
     #save all values in output for evaluation (raw, scaled, composite)
@@ -832,11 +840,11 @@ for(k in 1:length(unique.ffm)){
 #make comparison performance plots for Upstream Unimpaired vs. SWB Impaired
 
 #read in performance summary from SWB unimpiared (all models)
-perf.criteria.FFM.SWB1 <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Redwood_Creek_rev2/FFM_eval/Model_performance_FFM_summary_all_Redwood_rev2.csv")
-perf.criteria.FFM.SWB2 <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Mad_River_rev2/FFM_eval/Model_performance_FFM_summary_all_Mad_rev2.csv")
-perf.criteria.FFM.SWB3 <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Little_River/FFM_eval/Model_performance_FFM_summary_all_Little_rev2.csv")
-perf.criteria.FFM.SWB4 <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Elk_River_rev2/FFM_eval/Model_performance_FFM_summary_all_Elk_rev2.csv")
-perf.criteria.FFM.SWB5 <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/EEL_spring_summer_calibration_rev2/FFM_eval/Model_performance_FFM_summary_all_Eelrecal_spsum.csv")
+perf.criteria.FFM.SWB1 <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Redwood_Creek_rev2/FFM_eval/Model_performance_FFM_summary_all_Redwood_rev2.csv"))
+perf.criteria.FFM.SWB2 <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Mad_River_rev2/FFM_eval/Model_performance_FFM_summary_all_Mad_rev2.csv"))
+perf.criteria.FFM.SWB3 <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Little_River/FFM_eval/Model_performance_FFM_summary_all_Little_rev2.csv"))
+perf.criteria.FFM.SWB4 <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/Elk_River_rev2/FFM_eval/Model_performance_FFM_summary_all_Elk_rev2.csv"))
+perf.criteria.FFM.SWB5 <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/EEL_spring_summer_calibration_rev2/FFM_eval/Model_performance_FFM_summary_all_Eelrecal_spsum.csv"))
 #combine all into one df
 perf.criteria.FFM.SWB <- rbind(perf.criteria.FFM.SWB1,perf.criteria.FFM.SWB2,perf.criteria.FFM.SWB3,perf.criteria.FFM.SWB4,perf.criteria.FFM.SWB5) %>% 
   #only subset to validation gages

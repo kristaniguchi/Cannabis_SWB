@@ -39,13 +39,19 @@
 
 #data directories (location where csv files are saved - change to your local directory for each folder)
 #FFM directory where all gage FFMs and upstream tech ffms are saved
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#Cannabis E-Flows SharePoint root (switch between computers here; all paths below are built from sp_dir)
+#PC desktop
+#sp_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/"
+#MacBook
+sp_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/"
+
+FFM_dir <- paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/")
 
 #set working directory to FFM_dir
 setwd(FFM_dir)
 
 #read in FFM lookup table for plots to get official names - saved in working directory 2 folders back
-metric.names <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv")
+metric.names <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/FFC_outputs/all_metric_def_list_FFMs_v2.csv"))
 
 #read in training sites for upstream impaired flows to see if any SWB validation gages are training
 training.sites.up <- read_excel("../../all-training-eval-sites-in-ca.xlsx", sheet=3) %>% 
@@ -59,7 +65,7 @@ training.sites.up <- read_excel("../../all-training-eval-sites-in-ca.xlsx", shee
 
 #read in lookup table that has Gage.ID and model_ID
 #gage LU, linking gageID to COMID and other info,
-gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv") %>% 
+gage_lu <- read.csv(paste0(sp_dir, "Data/Working/Watershed_Delineation_Tool/Modeled_Flow/Eel_River/Lookup_Tables/Gage_PRMS_Subbasin_Lookup_comid.csv")) %>% 
   mutate(dataset = "gages") %>% 
   #left join with training.sites.up to see if sites are validation or training
   left_join(training.sites.up %>% select(Gage.ID, Upstream_Type), by="Gage.ID")
@@ -69,7 +75,8 @@ gage_lu <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/W
 #function to get period of record for each gage
 get_por <- function(site_no) {
   # Get metadata for the site
-  data <- whatNWISdata(siteNumber = site_no)
+  #override_error: NWIS legacy services retire Feb 22, 2027 (switch to read_waterdata_combined_meta before then)
+  data <- whatNWISdata(siteNumber = site_no, override_error = TRUE)
   
   # Filter to mean daily discharge (00060, statCd 00003)
   data <- data %>%
@@ -92,14 +99,15 @@ get_por <- function(site_no) {
 }
 
 # Get periods of record for all gages
-por_list <- lapply(gage_lu$Gage.ID, get_por)
+#POR lookup skipped: legacy NWIS site service is slow/retiring and gage_lu_por is not used downstream
+#por_list <- lapply(gage_lu$Gage.ID, get_por)
 
-# Combine into one data frame
-por_df <- bind_rows(por_list)
+## Combine into one data frame
+#por_df <- bind_rows(por_list)
 
-#join back to gage_lu
-gage_lu_por <- gage_lu %>%
-  left_join(por_df, by = "Gage.ID")
+##join back to gage_lu
+#gage_lu_por <- gage_lu %>%
+#  left_join(por_df, by = "Gage.ID")
 ####
 
 
@@ -108,7 +116,8 @@ list.files.all <- list.files(FFM_dir, full.names=TRUE)
 
 #read in gaged data
 #find gage data
-ind.gage <- grep("Obs_FFM", list.files.all)
+#observed FFMs at gages for actual model evaluation (the _unimpaired_2 file is SF Eel Leggett, unimpaired validation only)
+ind.gage <- grep("Obs_FFM_validation_gages_upstreamtech_POR.csv", list.files.all, fixed = TRUE)
 #FFM columns
 gage.ffm1 <- read.csv(list.files.all[ind.gage])
 
@@ -415,7 +424,7 @@ for(j in 1:(length(unique.gage.ffm))){
     }
     
     #composite performance index (mean of all 6 criteria)
-    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, O_E_scaled, R2), na.rm=TRUE)
+    composite_index_all <- mean(c(PBIAS_scaled, I80R_10_90_scaled, IQR_25_75_scaled, NSE_scaled, mean_O_E_scaled, R2), na.rm=TRUE)
     composite_index_disp <- mean(c(I80R_10_90_scaled, IQR_25_75_scaled), na.rm=TRUE)
     
     #save all values in output for evaluation (raw, scaled, composite)
@@ -780,7 +789,7 @@ for(k in 1:length(unique.ffm)){
 #make comparison performance plots for Upstream Actual vs. SWB Impaired
 
 #read in performance summary from SWB impaired
-perf.criteria.FFM.SWB <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_eval/Model_performance_FFM_summary_SWB_impaired_flow.csv")
+perf.criteria.FFM.SWB <- read.csv(paste0(sp_dir, "Data/RawData/NC_impaired_flows_20250515/python_edit_SCCWRP/outputs/FFM_eval/Model_performance_FFM_summary_SWB_impaired_flow.csv"))
 
 #SWB tidy performance table for heatmap - composite using all criteria
 perf.criteria.FFM.table.SWB <- perf.criteria.FFM.SWB %>% 
@@ -1118,16 +1127,14 @@ ggsave(paste0("../FFM_eval/model_comparison_barplot_counts_perf_category_overall
 #########summary of overall performance for all metrics upstream tech models of unimpaired and actual flows at validation/testing gages only
 
 #read in unimpaired flows performance all gages 
-unimpaired.perf.all <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Unimpaired_flows.csv") %>% 
+unimpaired.perf.all <- read.csv(paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Unimpaired_flows.csv")) %>% 
   filter(Upstream_Type == "Validation") %>% 
   #exclude gage metrics < 5 years of metrics calculated
   filter(n_annual_gage_model >= 5,
          #keep only north coast gages used in PRMS model
          Gage.ID %in% gage_lu$Gage.ID) %>% 
-  #left join the gage type (to screen out impaired gages) 
-  left_join(gage_lu, by = "Gage.ID") %>% 
-  #screen out impaired gages 
-  filter(Validation_Notes != "Impaired") %>% 
+  #note: no PRMS impaired-gage screen here; pure model performance uses all Upstream Tech testing (eval) gages
+  #(the PRMS Validation_Notes screen is only for apples-to-apples PRMS vs Upstream comparisons above)
   #group by FFM and find mean for composite_index and composite_index_disp
   group_by(FFM) %>%
   summarise(
@@ -1138,7 +1145,7 @@ unimpaired.perf.all <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - Ge
   mutate(model = "Upstream Tech Unimpaired Flows")
 
 #read in actual flows performance all gages
-actual.perf.all <- read.csv("C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv") %>% 
+actual.perf.all <- read.csv(paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_summary_Upstream_Actual_flows.csv")) %>% 
   filter(Upstream_Type == "Validation") %>% 
   #exclude gage metrics < 5 years of metrics calculated
   filter(n_annual_gage_model >= 5,
@@ -1158,7 +1165,7 @@ summary.performance.all <- unimpaired.perf.all %>%
   bind_rows(actual.perf.all)
 
 
-write.csv(summary.performance.all, file="C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_overall_actual_unimpaired_validation_Gages_NC_mean.csv")
+write.csv(summary.performance.all, file=paste0(sp_dir, "Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM_eval/Model_performance_FFM_overall_actual_unimpaired_validation_Gages_NC_mean.csv"))
 
 #####################
 #make radar/spider plots comparing upstream unimpaired and actual models mean composite index
