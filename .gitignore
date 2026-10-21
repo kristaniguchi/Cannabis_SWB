@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+Gage_Evaluation/inputs/daily_overall.csv
+_to_delete/
+*.RData

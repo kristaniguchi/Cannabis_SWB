@@ -14,9 +14,18 @@
 }
 
 #data directories (change to your local directory)
-NHD_dbf <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/NHD/NC_NHDPlusV2_CAComplete_W_VAAs.dbf"
-FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
-out_dir <- "C:/Users/kristinet/Documents/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
+#PC desktop
+#NHD_dbf <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/Geodatabase/Web_GIS_Cannabis/NC_NHDPlusV2_CAComplete_W_VAAs.dbf"
+#MacBook
+NHD_dbf <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/Data/Geodatabase/Web_GIS_Cannabis/NC_NHDPlusV2_CAComplete_W_VAAs.dbf"
+#PC desktop
+#FFM_dir <- "C:/Users/kristinet/SCCWRP/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#MacBook
+FFM_dir <- "/Users/kristq/Library/CloudStorage/OneDrive-SharedLibraries-OneDrive-SharedLibraries-SCCWRP2 2/Cannabis E-Flows - General/Data/RawData/Upstream_Impaired_Flows_NC/Actual Flows/FFM/"
+#PC desktop
+#out_dir <- "C:/Users/kristinet/Documents/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
+#MacBook
+out_dir <- "/Users/kristq/Cannabis_SWB/PhaseIII_Impaired_flows_evaluation/FFM_alteration_range/"
 
 #NHD flowline attributes (network topology via Hydroseq / DnHydroseq)
 nhd <- read.dbf(NHD_dbf, as.is = TRUE) %>%
